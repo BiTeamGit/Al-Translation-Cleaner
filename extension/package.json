@@ -1,0 +1,70 @@
+{
+  "name": "al-translation-cleaner",
+  "displayName": "AL Translation Cleaner",
+  "description": "Fix your AL translations with ease! This extension helps you transfer missing translations from XLIFF files to your .al files, ensuring your Dynamics 365 Business Central projects are always up-to-date and properly localized.",
+  "version": "0.0.1",
+  "icon": "assets/icon.png",
+  "publisher": "biteam",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.79.0"
+  },
+  "author": {
+    "url": "https://www.biteam.de",
+    "name": "BiTeam"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BiTeamGit/Al-Translation-Cleaner"
+  },
+  "bugs": {
+    "url": "https://github.com/BiTeamGit/Al-Translation-Cleaner/issues/new"
+  },
+  "categories": [
+    "Other",
+    "Formatters",
+    "Programming Languages",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onLanguage:al",
+    "workspaceContains:app.json",
+    "workspaceContains:al.template.json",
+    "onCommand:al.go"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [],
+    "menus": {
+      "commandPalette": []
+    },
+    "configuration": {
+      "title": "AL Translation Cleaner",
+      "properties": {}
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "vscode:prepublish": "npm run compile",
+    "watch": "tsc -w -p .",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "files": [
+    "out",
+    "assets",
+    "README.md",
+    "LICENSE.md",
+    "CHANGELOG.md"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.79.0",
+    "@vscode/test-electron": "^2.4.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.9.0"
+  },
+  "dependencies": {
+    "time-stamp": "^2.2.0"
+  }
+}
