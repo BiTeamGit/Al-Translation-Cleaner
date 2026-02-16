@@ -34,9 +34,19 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [],
+    "commands": [
+      {
+        "command": "atc.findTranslationsInFile",
+        "title": "ATC: Find Translations in File"
+      }
+    ],
     "menus": {
-      "commandPalette": []
+      "commandPalette": [
+        {
+          "command": "atc.findTranslationsInFile",
+          "when": "editorLangId == al"
+        }
+      ]
     },
     "configuration": {
       "title": "AL Translation Cleaner",
