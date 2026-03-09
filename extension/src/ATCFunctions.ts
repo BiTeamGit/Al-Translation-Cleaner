@@ -44,7 +44,7 @@ export async function findTranslationsInFile() {
             const XliffFile = await searchForTransUnitIdInXliff(header, XliffDocument);
             for (const transUnit of XliffFile.transUnits) {
                 const location = await findSourceLocationFromTansUnit(transUnit.lineNumber, XliffDocument);
-                logger.log(`Found translation for ${header.objectType} ${header.objectId} in file ${path.basename(fileUri.fsPath)} at line ${location.range.start.line + 1}`);
+                logger.log(`Found translation for ${header.objectType} ${header.objectId} in file ${path.basename(fileUri.fsPath)} at AL line ${location.range.start.line + 1} (xlf trans-unit line ${transUnit.lineNumber})`);
             }
             progress.report({ increment: 50 / xlfFilesUri.length })
         }

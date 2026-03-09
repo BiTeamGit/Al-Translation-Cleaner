@@ -347,7 +347,16 @@ function parseXliffElementPath(transUnitId: string, xliffGeneratorNote: string):
     } else {
       name = remainingNote;
     }
-    result.push({ type, name });
+    result.push({ type, name: formatName(name) });
   }
   return result;
+}
+
+function formatName(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
 }
