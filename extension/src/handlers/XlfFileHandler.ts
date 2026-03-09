@@ -1,5 +1,6 @@
 import { showErrorAndLog, throwErrorAndLog } from "../logging/LogHelper";
 import { ALObjectHeader, findAlSourceInWorkspace } from "./ALFileHandler";
+import { logger } from "../logging/LogHelper";
 import path from "path";
 import vscode, { Uri } from "vscode";
 
@@ -153,16 +154,16 @@ export interface TransUnity {
 const PROPERTY_MAP: { [key: string]: string } = {
   "2879900210": "Caption",
   "1295455071": "ToolTip",
-  "1829528612": "InstructionalText",
-  "2053935350": "OptionCaption",
-  "3798994825": "PromotedActionCategories",
-  "1469443180": "RequestFilterHeading",
-  "3526209625": "AdditionalSearchTerms",
+  "1968111052": "InstructionalText",
+  "62802879": "OptionCaption",
+  "2019332006": "PromotedActionCategories",
+  "1806354803": "RequestFilterHeading",
+  "3863440606": "AdditionalSearchTerms",
   "2179816606": "EntityCaption",
   "1894906039": "EntitySetCaption",
-  "2289949283": "ProfileDescription",
-  "3234332997": "AboutTitle",
-  "3234332998": "AboutText",
+  "4111922599": "ProfileDescription",
+  "1064389655": "AboutTitle",
+  "247559172": "AboutText",
   "2879845413": "Label",
   "3519868930": "ReportLabel",
   "3333885854": "NamedType",
@@ -195,6 +196,12 @@ export interface XliffFile {
 
 export interface TransUnit {
   lineNumber: number;
+  source: string;
+  translation?: string;
+  elementPath: { type: string; name: string }[];
+  propertyName?: string;
+  translations: Map<string, string>; // AL language code -> translated text
+  alLocation?: vscode.Location;
 }
 
 /**
@@ -203,24 +210,83 @@ export interface TransUnit {
  * @param document The XLIFF document.
  * @returns The XLIFF file information including translation units.
  */
-export function searchForTransUnitIdInXliff(alObjectHeader: ALObjectHeader, document: vscode.TextDocument): XliffFile { //TODO: Split this function, it does too many things at once, also the name does not reflect what it does anymore since it also extracts the target language and not only searches for the trans-unit id
-  const XLFFile: XliffFile = { filePath: document.uri.fsPath, targetLanguage: "", transUnits: [] };
+export function searchForTransUnitIdInXliff(alObjectHeader: ALObjectHeader, document: vscode.TextDocument): XliffFile {
   const lines = document.getText().split("\n");
+  const targetLanguage = path.basename(document.uri.fsPath).endsWith(".g.xlf")
+    ? ""
+    : findTargetLanguageInFile(lines);
 
-  //Only try to find target language if the file is not a .g.xlf file, since those are the default language
-  if (!path.basename(document.uri.fsPath).endsWith(".g.xlf")) {
-    XLFFile.targetLanguage = findTargetLanguageInFile(lines);
-  }
+  const transUnits = findTransUnitsForObject(alObjectHeader, lines);
 
-  const ObjectUnitId = `${alObjectHeader.objectType} ${alObjectHeader.objectId}`;
-  for (const line of lines) {
-    if (line.includes(ObjectUnitId)) {
-      const lineNumber = lines.indexOf(line);
-      XLFFile.transUnits.push({ lineNumber });
+  return { filePath: document.uri.fsPath, targetLanguage, transUnits };
+}
+
+function findTransUnitsForObject(alObjectHeader: ALObjectHeader, lines: string[]): TransUnit[] {
+  const transUnits: TransUnit[] = [];
+  const objectUnitId = `${alObjectHeader.objectType} ${alObjectHeader.objectId}`;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].includes(objectUnitId)) {
+      continue;
+    }
+    const transUnit = extractTransUnitFromLine(lines, i);
+    if (transUnit) {
+      transUnits.push(transUnit);
     }
   }
+  return transUnits;
+}
 
-  return XLFFile;
+function extractTransUnitFromLine(lines: string[], lineIndex: number): TransUnit | undefined {
+  const idMatch = lines[lineIndex].match(/<trans-unit\s+id="([^"]*)"[^>]*>/i);
+  if (!idMatch) {
+    return undefined;
+  }
+
+  const transUnitId = idMatch[1];
+  const sourceMatch = lines[lineIndex + 1]?.match(/<source>(.*)<\/source>/);
+  const translationMatch = lines[lineIndex + 2]?.match(/<target[^>]*>(.*)<\/target>/);
+  const note = findXliffGeneratorNote(lines, lineIndex);
+  const elementPath = note ? parseXliffElementPath(transUnitId, note) : [];
+  let propertyName = parsePropertyNameFromId(transUnitId);
+
+  // Labels don't have a Property segment in their XLIFF ID — infer the property name from the element path
+  if (!propertyName && elementPath.some(e => e.type === "NamedType" || e.type === "ReportLabel")) {
+    propertyName = "Label";
+  }
+
+  return {
+    lineNumber: lineIndex,
+    source: sourceMatch ? formatName(sourceMatch[1]) : "",
+    translation: translationMatch ? formatName(translationMatch[1]) : undefined,
+    elementPath,
+    propertyName,
+    translations: new Map(),
+  };
+}
+
+function findXliffGeneratorNote(lines: string[], startLine: number): string | undefined {
+  for (let j = startLine; j < lines.length && j - startLine <= 20; j++) {
+    if (j > startLine && /<\/trans-unit>/i.test(lines[j])) {
+      break;
+    }
+    const noteMatch = lines[j].match(/<note\s+from="Xliff Generator"[^>]*>(.*?)<\/note>/i);
+    if (noteMatch) {
+      return noteMatch[1];
+    }
+  }
+  return undefined;
+}
+
+function parsePropertyNameFromId(transUnitId: string): string | undefined {
+  const segments = transUnitId.split(" - ");
+  for (const segment of segments) {
+    const match = segment.match(/^(\w+)\s+(\d+)$/);
+    if (match && match[1] === "Property") {
+      return mapPropertyIdToName(match[2]);
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -260,6 +326,86 @@ export async function findSourceLocationFromTansUnit(lineNumber: number, documen
   }
 
   return await findAlSourceInWorkspace(elementPath);
+}
+
+export async function findSourceLocationFromTransUnit(transUnit: TransUnit): Promise<vscode.Location> {
+  if (transUnit.elementPath.length === 0) {
+    throw new Error("Trans-unit has no element path");
+  }
+  return await findAlSourceInWorkspace(transUnit.elementPath);
+}
+
+/**
+ * Merges trans-units from multiple XLIFF files into a deduplicated list.
+ * The .g.xlf provides the source text, translated files add language-specific translations
+ * mapped via languageMapping.
+ */
+export function mergeTranslations(xliffFiles: XliffFile[], languageMapping: { [targetLanguage: string]: string }): TransUnit[] {
+  const transUnitMap = new Map<string, TransUnit>();
+
+  // First pass: populate from .g.xlf files (source text)
+  for (const xliffFile of xliffFiles) {
+    if (xliffFile.targetLanguage !== "") {
+      continue;
+    }
+    for (const tu of xliffFile.transUnits) {
+      if (!tu.propertyName || tu.elementPath.length === 0) {
+        continue;
+      }
+      const key = buildTransUnitKey(tu);
+      if (!transUnitMap.has(key)) {
+        transUnitMap.set(key, { ...tu, translations: new Map() });
+      }
+    }
+  }
+
+  // Second pass: add translations from translated files
+  for (const xliffFile of xliffFiles) {
+    if (xliffFile.targetLanguage === "") {
+      continue;
+    }
+    const alLangCode = languageMapping[xliffFile.targetLanguage];
+    if (!alLangCode) {
+      logger.log(`No language mapping for '${xliffFile.targetLanguage}', skipping ${path.basename(xliffFile.filePath)}`);
+      continue;
+    }
+    for (const tu of xliffFile.transUnits) {
+      if (!tu.propertyName || !tu.translation || tu.elementPath.length === 0) {
+        continue;
+      }
+      const key = buildTransUnitKey(tu);
+      const existing = transUnitMap.get(key);
+      if (existing) {
+        existing.translations.set(alLangCode, tu.translation);
+      } else {
+        const merged: TransUnit = { ...tu, translations: new Map([[alLangCode, tu.translation]]) };
+        transUnitMap.set(key, merged);
+      }
+    }
+  }
+
+  return Array.from(transUnitMap.values());
+}
+
+/**
+ * Resolves AL source locations for each trans-unit that has an element path.
+ */
+export async function resolveAlLocations(transUnits: TransUnit[]): Promise<void> {
+  for (const tu of transUnits) {
+    if (tu.elementPath.length === 0) {
+      continue;
+    }
+    try {
+      tu.alLocation = await findSourceLocationFromTransUnit(tu);
+    } catch {
+      logger.log(`Could not find AL source for: ${tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ")}`);
+    }
+  }
+}
+
+function buildTransUnitKey(transUnit: TransUnit): string {
+  const pathKey = transUnit.elementPath.map(e => `${e.type}:${e.name}`).join("/");
+  return `${pathKey}/${transUnit.propertyName}`;
 }
 
 /**

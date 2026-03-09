@@ -1,11 +1,13 @@
 import vscode from "vscode";
 import { logger, throwErrorAndLog } from "./logging/LogHelper";
 import path from "path";
-import { getALObjectHeader } from "./handlers/ALFileHandler";
-import { findSourceLocationFromTansUnit, findTransUnitIdInXliffFiles, searchForTransUnitIdInXliff } from './handlers/XlfFileHandler';
+import { applyTranslationsToAlFile, getALObjectHeader, resolveAlLocationsInFile } from "./handlers/ALFileHandler";
+import { mergeTranslations, searchForTransUnitIdInXliff, XliffFile } from './handlers/XlfFileHandler';
+import { getSettings } from "./settings/SettingsLoader";
 
 /**
- * Finds all translation keys in the currently active AL file and searches for them in all XLIFF files except generated ones(.g.xlf).
+ * Finds all translation keys in the currently active AL file, gathers translations
+ * from XLIFF files, and writes them to the AL file based on the translation method setting.
  */
 export async function findTranslationsInFile() {
     logger.log("Executing findTranslationsInFile command...");
@@ -21,37 +23,60 @@ export async function findTranslationsInFile() {
         throwErrorAndLog("findTranslationsInFile", new Error("Active file is not an AL file"));
     }
 
+    const settings = getSettings();
+
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Searching for translations in XLIFF files...",
         cancellable: false
     }, async (progress) => {
-        const header = getALObjectHeader(activeEditor.document.getText().split(/\r?\n/));
+        const lines = activeEditor.document.getText().split(/\r?\n/);
+        const header = getALObjectHeader(lines, activeEditor.document.uri);
 
-        // Get all XLIFF files in the workspace
-        const xlfFilesUri = await vscode.workspace.findFiles("**/*.xlf", "**/node_modules/**", 100000);
-        if (xlfFilesUri.length === 0) {
-            logger.log("No XLIFF files found in the workspace.");
-            logger.log("findTranslationsInFile command completed.");
+        // Gather trans-units from all XLIFF files
+        progress.report({ message: "Scanning XLIFF files..." });
+        const xliffFiles = await gatherXliffFiles(header);
+        if (xliffFiles.length === 0) {
+            logger.log("No matching XLIFF trans-units found.");
             return;
         }
+        progress.report({ increment: 30 });
 
-        // Get translation units from all XLIFF files and find source locations
-        progress.report({ message: `Searching ${xlfFilesUri.length} xlf files...` });
-        for (const fileUri of xlfFilesUri) {
-            const XliffDocument = await vscode.workspace.openTextDocument(fileUri);
+        // Merge translations across files
+        progress.report({ message: "Merging translations..." });
+        const transUnits = mergeTranslations(xliffFiles, settings.languageMapping);
+        progress.report({ increment: 20 });
 
-            const XliffFile = await searchForTransUnitIdInXliff(header, XliffDocument);
-            for (const transUnit of XliffFile.transUnits) {
-                const location = await findSourceLocationFromTansUnit(transUnit.lineNumber, XliffDocument);
-                logger.log(`Found translation for ${header.objectType} ${header.objectId} in file ${path.basename(fileUri.fsPath)} at AL line ${location.range.start.line + 1} (xlf trans-unit line ${transUnit.lineNumber})`);
-            }
-            progress.report({ increment: 50 / xlfFilesUri.length })
-        }
+        // Resolve AL source locations directly from the active file
+        progress.report({ message: "Resolving AL source locations..." });
+        resolveAlLocationsInFile(transUnits, header);
+        progress.report({ increment: 20 });
+
+        // Write translations to the AL file
+        progress.report({ message: "Writing translations..." });
+        const languageOrder = Object.values(settings.languageMapping);
+        await applyTranslationsToAlFile(activeEditor.document.uri, transUnits, settings.translationMethod, languageOrder);
+        progress.report({ increment: 30 });
     });
 
     logger.log("findTranslationsInFile command completed.");
-
     status.dispose();
+}
 
+async function gatherXliffFiles(header: ReturnType<typeof getALObjectHeader>): Promise<XliffFile[]> {
+    const xlfFilesUri = await vscode.workspace.findFiles("**/*.xlf", "**/node_modules/**", 100000);
+    if (xlfFilesUri.length === 0) {
+        logger.log("No XLIFF files found in the workspace.");
+        return [];
+    }
+
+    const xliffFiles: XliffFile[] = [];
+    for (const fileUri of xlfFilesUri) {
+        const document = await vscode.workspace.openTextDocument(fileUri);
+        const xliffFile = searchForTransUnitIdInXliff(header, document);
+        if (xliffFile.transUnits.length > 0) {
+            xliffFiles.push(xliffFile);
+        }
+    }
+    return xliffFiles;
 }
