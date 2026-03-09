@@ -2,9 +2,9 @@
   "name": "al-translation-cleaner",
   "displayName": "AL Translation Cleaner",
   "description": "Fix your AL translations with ease! This extension helps you transfer missing translations from XLIFF files to your .al files, ensuring your Dynamics 365 Business Central projects are always up-to-date and properly localized.",
-  "version": "0.0.1",
+  "version": "0.0.1-beta",
   "icon": "assets/icon.png",
-  "publisher": "biteam",
+  "publisher": "BiTeam",
   "license": "MIT",
   "engines": {
     "vscode": "^1.79.0"
@@ -23,8 +23,7 @@
   "categories": [
     "Other",
     "Formatters",
-    "Programming Languages",
-    "Snippets"
+    "Programming Languages"
   ],
   "activationEvents": [
     "onLanguage:al",
@@ -50,7 +49,27 @@
     },
     "configuration": {
       "title": "AL Translation Cleaner",
-      "properties": {}
+      "properties": {
+        "ATC.TranslationMethod": {
+          "type": "string",
+          "description": "Specifies the Method of XLIFF editing used, if the original translations in the .al files should  be replaced completely by the translations in the XLIFF, or just translations that are missing in the .al files should be added, not modifying existing translations.",
+          "enum": [
+            "replace",
+            "ask",
+            "add"
+          ],
+          "default": "replace"
+        },
+        "ATC.languageMapping": {
+          "type": "object",
+          "scope": "window",
+          "description": "Maps target language codes (from XLIFF) to AL comment language codes. Key: target language (e.g., 'de-DE'), Value: AL comment code (e.g., 'DEU')",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "scripts": {
