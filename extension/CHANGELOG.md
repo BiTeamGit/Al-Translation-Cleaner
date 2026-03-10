@@ -12,6 +12,9 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 ### Changed
 - Renamed ATC.TranslationMethod to ATC.translationMethod for consistency
 
+### Fixed
+- Comments have to be structured like this: '%1="Description", DEU="Translation", Other Comment'
+
 ## [1.0.0-beta] - 2026-03-10
 
 ### Added

@@ -656,14 +656,15 @@ function buildTranslatedPropertyLine(
   const commentInfo = findCommentInLine(result);
 
   if (commentInfo) {
-    const { nonTranslationParts, existingLangEntries } = parseCommentParts(commentInfo.value);
+    const { placeholderDescriptions, existingLangEntries, otherComments } = parseCommentParts(commentInfo.value);
     const mergedLangEntries = mergeLangEntries(existingLangEntries, newLangEntries, commentMethod);
 
-    if (mergedLangEntries.length === 0 && nonTranslationParts.length === 0) {
+    if (mergedLangEntries.length === 0 && placeholderDescriptions.length === 0 && otherComments.length === 0) {
       return result !== lineText ? result : undefined;
     }
 
-    const allParts = [...nonTranslationParts, ...mergedLangEntries];
+    // Order: placeholder descriptions, translations, other comments
+    const allParts = [...placeholderDescriptions, ...mergedLangEntries, ...otherComments];
     const newComment = `, ${commentInfo.keyword} = '${allParts.join(",")}'`;
     result = result.substring(0, commentInfo.start) + newComment + result.substring(commentInfo.end);
     return result !== lineText ? result : undefined;
@@ -743,29 +744,34 @@ function findCommentInLine(lineText: string): { start: number; end: number; valu
 }
 
 /**
- * Splits a Comment value into non-translation parts (like "Locked") and language label entries.
+ * Splits a Comment value into placeholder descriptions, language label entries, and other comments.
+ * Order: %1="...", %2="...", then DEU="...", ENU="...", then Locked, etc.
  * Respects double-quote boundaries so values like DEU=" ,Opt1,Opt2" stay intact.
  */
-function parseCommentParts(comment: string): { nonTranslationParts: string[]; existingLangEntries: string[] } {
-  const nonTranslationParts: string[] = [];
+function parseCommentParts(comment: string): { placeholderDescriptions: string[]; existingLangEntries: string[]; otherComments: string[] } {
+  const placeholderDescriptions: string[] = [];
   const existingLangEntries: string[] = [];
+  const otherComments: string[] = [];
 
   if (!comment) {
-    return { nonTranslationParts, existingLangEntries };
+    return { placeholderDescriptions, existingLangEntries, otherComments };
   }
 
   const parts = splitRespectingQuotes(comment);
+  const placeholderPattern = /^%\d+=".*"$/;
   const langPattern = /^\w+=".*"$/;
 
   for (const part of parts) {
-    if (langPattern.test(part)) {
+    if (placeholderPattern.test(part)) {
+      placeholderDescriptions.push(part);
+    } else if (langPattern.test(part)) {
       existingLangEntries.push(part);
     } else {
-      nonTranslationParts.push(part);
+      otherComments.push(part);
     }
   }
 
-  return { nonTranslationParts, existingLangEntries };
+  return { placeholderDescriptions, existingLangEntries, otherComments };
 }
 
 /**
