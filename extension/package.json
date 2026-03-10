@@ -41,6 +41,10 @@
       {
         "command": "atc.writeTranslationsFromXliffToALFile",
         "title": "ATC: Write Translations in current Xliff File to AL File Comments"
+      },
+      {
+        "command": "atc.writeTranslationsFromAllXliffToALFiles",
+        "title": "ATC: Write Translations from All Xliff Files to AL File Comments"
       }
     ],
     "menus": {
@@ -52,6 +56,9 @@
         {
           "command": "atc.writeTranslationsFromXliffToALFile",
           "when": "resourceExtname == .xlf"
+        },
+        {
+          "command": "atc.writeTranslationsFromAllXliffToALFiles"
         }
       ]
     },
