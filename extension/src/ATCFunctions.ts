@@ -52,11 +52,13 @@ export async function findTranslationsInALFile() {
         resolveAlLocationsInFile(transUnits, header);
 
         // Insert any missing properties, then re-resolve so they get an alLocation
-        const inserted = await insertMissingPropertiesInAlFile(activeEditor.document.uri, transUnits);
-        if (inserted > 0) {
-            const newLines = activeEditor.document.getText().split(/\r?\n/);
-            header.lines = newLines;
-            resolveAlLocationsInFile(transUnits, header);
+        if (settings.addMissingProperties) {
+            const inserted = await insertMissingPropertiesInAlFile(activeEditor.document.uri, transUnits);
+            if (inserted > 0) {
+                const newLines = activeEditor.document.getText().split(/\r?\n/);
+                header.lines = newLines;
+                resolveAlLocationsInFile(transUnits, header);
+            }
         }
         progress.report({ increment: 20 });
 
@@ -157,11 +159,13 @@ export async function findTranslationsInXliffFile() {
             resolveAlLocationsInFile(transUnits, header);
 
             // Insert any missing properties, then re-resolve so they get an alLocation
-            const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
-            if (inserted > 0) {
-                const doc = await vscode.workspace.openTextDocument(header.fileUri);
-                header.lines = doc.getText().split(/\r?\n/);
-                resolveAlLocationsInFile(transUnits, header);
+            if (settings.addMissingProperties) {
+                const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
+                if (inserted > 0) {
+                    const doc = await vscode.workspace.openTextDocument(header.fileUri);
+                    header.lines = doc.getText().split(/\r?\n/);
+                    resolveAlLocationsInFile(transUnits, header);
+                }
             }
 
             // Apply translations
