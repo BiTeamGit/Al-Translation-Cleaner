@@ -4,6 +4,20 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.0.0-beta-1]
+
+### Added
+- Setting: ATC.addMissingProperties
+
+### Changed
+- Renamed ATC.TranslationMethod to ATC.translationMethod for consistency
+
+## [1.0.0-beta] - 2026-03-10
+
+### Added
+
+- Command: Find Translations in Xliff File (See [README.md](README.md#atc-find-translations-in-xliff-file) for more info)
+
 ## [0.0.1-beta] - 2026-03-09
 
 ### Added
@@ -11,10 +25,3 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 - Command: Find Translations in AL File (See [README.md](README.md#atc-find-translations-in-file) for more info)
 - Setting: ATC.TranslationMethod
 - Setting: ATC.languageMapping
-
-
-## [1.0.0-beta] - 2026-03-10
-
-### Added
-
-- Command: Find Translations in Xliff File (See [README.md](README.md#atc-find-translations-in-xliff-file) for more info)

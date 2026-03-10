@@ -1,5 +1,5 @@
 # AL Translation Cleaner
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/biteam.al-translation-cleaner) ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/biteam.al-translation-cleaner?color=blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/biteam.al-translation-cleaner) ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/biteam.al-translation-cleaner?color=green)
 
 
 This is the repository for AL Translation Cleaner, a Visual Studio Code extension. Learn more about AL Translation Cleaners functions and capabilities in the extension [README](extension/README.md).
