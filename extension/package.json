@@ -35,22 +35,22 @@
   "contributes": {
     "commands": [
       {
-        "command": "atc.findTranslationsInALFile",
-        "title": "ATC: Find Translations in AL File"
+        "command": "atc.writeTranslationsToCommentsInALFile",
+        "title": "ATC: Write Translations to Comments in current AL File"
       },
       {
-        "command": "atc.findTranslationsInXliffFile",
-        "title": "ATC: Find Translations in XLF File"
+        "command": "atc.writeTranslationsFromXliffToALFile",
+        "title": "ATC: Write Translations in current Xliff File to AL File Comments"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "atc.findTranslationsInALFile",
+          "command": "atc.writeTranslationsToCommentsInALFile",
           "when": "editorLangId == al"
         },
         {
-          "command": "atc.findTranslationsInXliffFile",
+          "command": "atc.writeTranslationsFromXliffToALFile",
           "when": "resourceExtname == .xlf"
         }
       ]

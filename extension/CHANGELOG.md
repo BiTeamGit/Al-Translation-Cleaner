@@ -7,12 +7,17 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 ## [1.0.0-beta-1]
 
 ### Added
+
 - Setting: ATC.addMissingProperties
 
 ### Changed
-- Renamed ATC.TranslationMethod to ATC.translationMethod for consistency
+
+- Renamed "ATC.TranslationMethod" to "ATC.translationMethod" for consistency
+  -Renamed "ATC: Find Translations in AL File" to "ATC: Write Translations to Comments in current AL File" for better understanding
+- Renamed "ATC: Find Translations in XLF File" to "ATC: Write Translations in current Xliff File to AL File Comments" for better understanding
 
 ### Fixed
+
 - Comments have to be structured like this: '%1="Description", DEU="Translation", Other Comment'
 
 ## [1.0.0-beta] - 2026-03-10
