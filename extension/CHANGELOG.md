@@ -10,6 +10,10 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 * Command:Write Translations from All Xliff Files to AL File Comments (See [README.md](README.md#atc-write-translations-from-all-xliff-files-to-al-file-comments) for more info)
 
+### Fixed
+
+* Translations are not written into Locked Lines
+
 ## [1.0.0-beta-1] - 2026-03-10
 
 ### Added
