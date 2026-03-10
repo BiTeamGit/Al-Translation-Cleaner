@@ -9,18 +9,18 @@ import { getSettings } from "./settings/SettingsLoader";
  * Finds all translation keys in the currently active AL file, gathers translations
  * from XLIFF files, and writes them to the AL file based on the translation method setting.
  */
-export async function findTranslationsInALFile() {
-    logger.log("Executing findTranslationsInALFile command...");
+export async function writeTranslationsToCommentsInALFile() {
+    logger.log("Executing writeTranslationsToCommentsInALFile command...");
     const status = vscode.window.setStatusBarMessage("ATC: Find Translations in File...");
 
     //check if active editor is available and is an AL file
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
-        logger.log("findTranslationsInALFile command completed.");
+        logger.log("writeTranslationsToCommentsInALFile command completed.");
         return;
     }
     if (path.extname(activeEditor.document.uri.fsPath) !== '.al') {
-        throwErrorAndLog("findTranslationsInALFile", new Error("Active file is not an AL file"));
+        throwErrorAndLog("writeTranslationsToCommentsInALFile", new Error("Active file is not an AL file"));
     }
 
     const settings = getSettings();
@@ -52,11 +52,13 @@ export async function findTranslationsInALFile() {
         resolveAlLocationsInFile(transUnits, header);
 
         // Insert any missing properties, then re-resolve so they get an alLocation
-        const inserted = await insertMissingPropertiesInAlFile(activeEditor.document.uri, transUnits);
-        if (inserted > 0) {
-            const newLines = activeEditor.document.getText().split(/\r?\n/);
-            header.lines = newLines;
-            resolveAlLocationsInFile(transUnits, header);
+        if (settings.addMissingProperties) {
+            const inserted = await insertMissingPropertiesInAlFile(activeEditor.document.uri, transUnits);
+            if (inserted > 0) {
+                const newLines = activeEditor.document.getText().split(/\r?\n/);
+                header.lines = newLines;
+                resolveAlLocationsInFile(transUnits, header);
+            }
         }
         progress.report({ increment: 20 });
 
@@ -67,7 +69,7 @@ export async function findTranslationsInALFile() {
         progress.report({ increment: 30 });
     });
 
-    logger.log("findTranslationsInALFile command completed.");
+    logger.log("writeTranslationsToCommentsInALFile command completed.");
     status.dispose();
 }
 
@@ -93,17 +95,17 @@ async function gatherXliffFiles(header: ReturnType<typeof getALObjectHeader>): P
  * Finds all AL objects referenced in the currently active XLF file and applies
  * only the translations from that single XLF file to the corresponding AL files.
  */
-export async function findTranslationsInXliffFile() {
-    logger.log("Executing findTranslationsInXliffFile command...");
-    const status = vscode.window.setStatusBarMessage("ATC: Find Translations in XLF File...");
+export async function writeTranslationsFromXliffToALFile() {
+    logger.log("Executing writeTranslationsFromXliffToALFile command...");
+    const status = vscode.window.setStatusBarMessage("ATC: Write Translations in current Xliff File to AL File Comments...");
 
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
-        logger.log("findTranslationsInXliffFile command completed.");
+        logger.log("writeTranslationsFromXliffToALFile command completed.");
         return;
     }
     if (path.extname(activeEditor.document.uri.fsPath) !== '.xlf') {
-        throwErrorAndLog("findTranslationsInXliffFile", new Error("Active file is not an XLF file"));
+        throwErrorAndLog("writeTranslationsFromXliffToALFile", new Error("Active file is not an XLF file"));
     }
 
     const settings = getSettings();
@@ -157,11 +159,13 @@ export async function findTranslationsInXliffFile() {
             resolveAlLocationsInFile(transUnits, header);
 
             // Insert any missing properties, then re-resolve so they get an alLocation
-            const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
-            if (inserted > 0) {
-                const doc = await vscode.workspace.openTextDocument(header.fileUri);
-                header.lines = doc.getText().split(/\r?\n/);
-                resolveAlLocationsInFile(transUnits, header);
+            if (settings.addMissingProperties) {
+                const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
+                if (inserted > 0) {
+                    const doc = await vscode.workspace.openTextDocument(header.fileUri);
+                    header.lines = doc.getText().split(/\r?\n/);
+                    resolveAlLocationsInFile(transUnits, header);
+                }
             }
 
             // Apply translations
@@ -171,6 +175,6 @@ export async function findTranslationsInXliffFile() {
         }
     });
 
-    logger.log("findTranslationsInXliffFile command completed.");
+    logger.log("writeTranslationsFromXliffToALFile command completed.");
     status.dispose();
 }
