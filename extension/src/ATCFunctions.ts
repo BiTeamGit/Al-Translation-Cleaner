@@ -178,3 +178,109 @@ export async function writeTranslationsFromXliffToALFile() {
     logger.log("writeTranslationsFromXliffToALFile command completed.");
     status.dispose();
 }
+/**
+ * Finds all XLF files in the workspace and applies translations from each
+ * to the corresponding AL files.
+ */
+export async function writeTranslationsFromAllXliffToALFiles() {
+    logger.log("Executing writeTranslationsFromAllXliffToALFiles command...");
+    const status = vscode.window.setStatusBarMessage("ATC: Write Translations from All Xliff Files to AL File Comments...");
+
+    const settings = getSettings();
+
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Processing all XLF files...",
+        cancellable: false
+    }, async (progress) => {
+        // Find all XLF files
+        progress.report({ message: "Finding XLF files..." });
+        const xlfFilesUri = await vscode.workspace.findFiles("**/*.xlf", "**/node_modules/**", 100000);
+        if (xlfFilesUri.length === 0) {
+            logger.log("No XLIFF files found in the workspace.");
+            vscode.window.showInformationMessage("No XLIFF files found in the workspace.");
+            return;
+        }
+        progress.report({ increment: 5 });
+
+        // Build an index of all AL files in the workspace once
+        progress.report({ message: "Indexing AL files..." });
+        const alIndex = await buildAlFileIndex();
+        progress.report({ increment: 10 });
+
+        // Parse all XLF files and group translations by AL object key
+        progress.report({ message: "Parsing XLF files..." });
+        const translationsByObject = new Map<string, XliffFile[]>();
+
+        for (const xlfUri of xlfFilesUri) {
+            const xlfDocument = await vscode.workspace.openTextDocument(xlfUri);
+            const groupedXlf = parseXlfGroupedByObject(xlfDocument);
+
+            for (const [objectKey, transUnitsForObject] of groupedXlf.transUnitsByObject) {
+                if (!translationsByObject.has(objectKey)) {
+                    translationsByObject.set(objectKey, []);
+                }
+                translationsByObject.get(objectKey)!.push({
+                    filePath: groupedXlf.filePath,
+                    targetLanguage: groupedXlf.targetLanguage,
+                    transUnits: transUnitsForObject,
+                });
+            }
+        }
+        progress.report({ increment: 5 });
+
+        const uniqueObjectCount = translationsByObject.size;
+        if (uniqueObjectCount === 0) {
+            vscode.window.showInformationMessage("No AL objects found in XLIFF files.");
+            return;
+        }
+
+        const languageOrder = Object.values(settings.languageMapping);
+        const progressPerObject = 80 / uniqueObjectCount;
+        let processedObjects = 0;
+
+        // Process each unique AL object once, merging translations from all XLF files
+        for (const [objectKey, xliffFiles] of translationsByObject) {
+            const [objectType, objectName] = objectKey.split("|");
+
+            processedObjects++;
+            progress.report({
+                message: `Processing ${objectType} "${objectName}" (${processedObjects}/${uniqueObjectCount})...`
+            });
+
+            // Look up the AL file from the pre-built index
+            const header = alIndex.get(objectKey);
+            if (!header) {
+                logger.log(`Could not find AL file for ${objectType} "${objectName}"`);
+                progress.report({ increment: progressPerObject });
+                continue;
+            }
+
+            // Merge translations from all XLF files for this object
+            const transUnits = mergeTranslations(xliffFiles, settings.languageMapping);
+
+            // Resolve AL source locations in the file
+            resolveAlLocationsInFile(transUnits, header);
+
+            // Insert any missing properties, then re-resolve so they get an alLocation
+            if (settings.addMissingProperties) {
+                const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
+                if (inserted > 0) {
+                    const doc = await vscode.workspace.openTextDocument(header.fileUri);
+                    header.lines = doc.getText().split(/\r?\n/);
+                    resolveAlLocationsInFile(transUnits, header);
+                }
+            }
+
+            // Apply translations
+            await applyTranslationsToAlFile(header.fileUri, transUnits, settings.translationMethod, languageOrder);
+
+            progress.report({ increment: progressPerObject });
+        }
+
+        vscode.window.showInformationMessage(`Successfully processed ${uniqueObjectCount} AL object(s) from ${xlfFilesUri.length} XLIFF file(s).`);
+    });
+
+    logger.log("writeTranslationsFromAllXliffToALFiles command completed.");
+    status.dispose();
+}

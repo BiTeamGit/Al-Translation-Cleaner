@@ -14,6 +14,10 @@ Finds all translations for the selected AL file and adds missing translations if
 
 Finds all translations in the XLIFF file and writes all missing translations for that language into the corresponding files.
 
+### ATC: Write Translations from All Xliff Files to AL File Comments
+
+Finds all translations in all the XLIFF files and writes all missing translations into the corresponding files.
+
 ## Extension Settings
 
 - `ATC.translationMethod` - Specifies the Method of XLIFF editing used. Replace Mode completely overwrites all translations with the translations given in the XLIFF files. Add Mode only adds missing translation and does not modify existing translations. Ask Mode has the same functionality as Add Mode, but if there is a wrong translation the User is asked how he wants to respond("Replace" replaces the wrong translations, "Add missing only" only adds missing translations, "Skip completely skips the current line, "Cancel all" stops the whole process)
