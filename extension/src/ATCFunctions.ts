@@ -9,18 +9,18 @@ import { getSettings } from "./settings/SettingsLoader";
  * Finds all translation keys in the currently active AL file, gathers translations
  * from XLIFF files, and writes them to the AL file based on the translation method setting.
  */
-export async function findTranslationsInALFile() {
-    logger.log("Executing findTranslationsInALFile command...");
+export async function writeTranslationsToCommentsInALFile() {
+    logger.log("Executing writeTranslationsToCommentsInALFile command...");
     const status = vscode.window.setStatusBarMessage("ATC: Find Translations in File...");
 
     //check if active editor is available and is an AL file
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
-        logger.log("findTranslationsInALFile command completed.");
+        logger.log("writeTranslationsToCommentsInALFile command completed.");
         return;
     }
     if (path.extname(activeEditor.document.uri.fsPath) !== '.al') {
-        throwErrorAndLog("findTranslationsInALFile", new Error("Active file is not an AL file"));
+        throwErrorAndLog("writeTranslationsToCommentsInALFile", new Error("Active file is not an AL file"));
     }
 
     const settings = getSettings();
@@ -69,7 +69,7 @@ export async function findTranslationsInALFile() {
         progress.report({ increment: 30 });
     });
 
-    logger.log("findTranslationsInALFile command completed.");
+    logger.log("writeTranslationsToCommentsInALFile command completed.");
     status.dispose();
 }
 

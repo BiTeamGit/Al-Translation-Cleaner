@@ -6,7 +6,7 @@ AL Translation Cleaner is a VS Code extension that automatically inserts missing
 
 ## Features
 
-### ATC: Find Translations in AL File
+### ATC: Write Translations to Comments in current AL File
 
 Finds all translations for the selected AL file and adds missing translations if needed.
 

@@ -35,8 +35,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "atc.findTranslationsInALFile",
-        "title": "ATC: Find Translations in AL File"
+        "command": "atc.writeTranslationsToCommentsInALFile",
+        "title": "ATC: Write Translations to Comments in current AL File"
       },
       {
         "command": "atc.findTranslationsInXliffFile",
@@ -46,7 +46,7 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "atc.findTranslationsInALFile",
+          "command": "atc.writeTranslationsToCommentsInALFile",
           "when": "editorLangId == al"
         },
         {
