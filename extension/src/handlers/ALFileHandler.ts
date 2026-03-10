@@ -611,6 +611,11 @@ function buildTranslatedPropertyLine(
   replaceSource: boolean,
   languageOrder: string[]
 ): string | undefined {
+  // Respect AL Locked marker: never modify lines that contain Locked.
+  if (/\bLocked\b/i.test(lineText)) {
+    return undefined;
+  }
+
   if (transUnit.translations.size === 0 && !replaceSource) {
     return undefined;
   }
