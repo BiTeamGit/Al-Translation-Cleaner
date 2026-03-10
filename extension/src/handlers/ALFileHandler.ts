@@ -16,7 +16,7 @@ export interface ALObjectHeader {
  * @returns An object containing the object type, name, and ID.
  */
 export function getALObjectHeader(lines: string[], fileUri: vscode.Uri): ALObjectHeader {
-  const headerPattern = /^\s*(table|page|report|codeunit|query|xmlport|enum|enumextension|pageextension|tableextension|reportextension|controladdin|profile)\s+(\d+\s+)?("?[^"]+"?)/i;
+  const headerPattern = /^\s*(table|page|report|codeunit|query|xmlport|enum|enumextension|pageextension|tableextension|permissionset|reportextension|controladdin|profile)\s+(\d+\s+)?("?[^"]+"?)/i;
   let objectType: string | undefined;
   let objectName: string | undefined;
   let objectId: number | undefined;
@@ -39,13 +39,45 @@ export function getALObjectHeader(lines: string[], fileUri: vscode.Uri): ALObjec
   }
 
   if (!objectType || !objectName) {
-    throwErrorAndLog("getALObjectHeader", new Error("Could not determine AL object type and name from the file."));
+    throwErrorAndLog("getALObjectHeader", new Error(`Could not determine AL object type and name from file: ${fileUri.fsPath}`));
   }
 
   objectId = getXliffId(objectName);
   return { objectType, objectName, objectId, fileUri, lines };
 }
 
+/**
+ * Non-throwing variant of getALObjectHeader.
+ * Returns undefined if the file has no valid AL object header (e.g. commented-out content).
+ */
+export function tryGetALObjectHeader(lines: string[], fileUri: vscode.Uri): ALObjectHeader | undefined {
+  const headerPattern = /^\s*(table|page|report|codeunit|query|xmlport|enum|enumextension|pageextension|tableextension|permissionset|reportextension|controladdin|profile)\s+(\d+\s+)?("?[^"]+"?)/i;
+  let objectType: string | undefined;
+  let objectName: string | undefined;
+
+  for (const line of lines) {
+    const match = headerPattern.exec(line);
+    if (match) {
+      objectType = objectTypeMap.get(match[1].toLowerCase());
+      if (!objectType) {
+        continue;
+      }
+      let name = match[3].trim();
+      if (name.startsWith('"') && name.endsWith('"')) {
+        name = name.substring(1, name.length - 1).replace(/""/g, '"');
+      }
+      objectName = name;
+      break;
+    }
+  }
+
+  if (!objectType || !objectName) {
+    return undefined;
+  }
+
+  const objectId = getXliffId(objectName);
+  return { objectType, objectName, objectId, fileUri, lines };
+}
 
 /**
  * Generates the XLIFF ID for the given AL object name.
@@ -87,65 +119,8 @@ const objectTypeMap = new Map<string, string>([
   ["reportextension", "ReportExtension"],
   ["controladdin", "ControlAddIn"],
   ["profile", "Profile"],
+  ["permissionset", "PermissionSet"]
 ]);
-
-
-
-
-
-
-export async function findAlSourceInWorkspace(elementPath: { type: string; name: string }[]): Promise<vscode.Location> {
-  if (elementPath.length === 0) {
-    throwErrorAndLog("findAlSourceInWorkspace", new Error("Element path cannot be empty"));
-  }
-
-  const objectType = elementPath[0].type.toLowerCase();
-  const objectName = elementPath[0].name;
-  const escapedName = objectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  const objectPattern = new RegExp(`^\\s*${objectType}\\s+\\d+\\s+(?:"${escapedName}"|${escapedName})(?:\\s|$)`, "im");
-
-  const alFiles = await vscode.workspace.findFiles("**/*.al");
-
-  for (const fileUri of alFiles) {
-    let fileContext: string;
-    try {
-      const bytes = await vscode.workspace.fs.readFile(fileUri);
-      fileContext = Buffer.from(bytes).toString("utf8");
-    } catch (error) {
-      continue;
-    }
-
-    if (!objectPattern.test(fileContext)) {
-      continue;
-    }
-
-    const lines = fileContext.split(/\r?\n/);
-    const subPath = elementPath.slice(1);
-
-    let targetLine: number | undefined;
-    if (subPath.length > 0) {
-      targetLine = findTargetLineInAlFile(lines, subPath);
-    }
-
-    if (targetLine === undefined) {
-      for (let i = 0; i < lines.length; i++) {
-        if (objectPattern.test(lines[i])) {
-          targetLine = i;
-          break;
-        }
-      }
-    }
-
-    if (targetLine !== undefined && targetLine < lines.length) {
-      const lineText = lines[targetLine];
-      const indent = lineText.length - lineText.trimStart().length;
-      return new vscode.Location(fileUri, new vscode.Range(targetLine, indent, targetLine, lineText.length));
-    }
-  }
-
-  throwErrorAndLog("findAlSourceInWorkspace", new Error("Could not find AL source in workspace"));
-}
 
 function findTargetLineInAlFile(lines: string[], subPath: { type: string; name: string }[]): number | undefined {
   if (subPath.length === 0) {
@@ -281,7 +256,7 @@ function findAlElementLine(
         break;
 
       case "property":
-        if (new RegExp(`^${escapedName}\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`(?:^|[{,]\\s*)${escapedName}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -380,14 +355,45 @@ function findBeginEndScopeEnd(lines: string[], startLine: number): number {
 }
 
 /**
- * Applies translations from the merged trans-units to the AL file.
- * Sorts edits bottom-up so line numbers remain stable.
- *
- * Translation methods:
- * - "replace": Replace source text with .g.xlf value and replace all translations in Comment.
- * - "ask": Add missing translations silently, ask user before replacing differing translations.
- * - "add": Only add missing translations, never modify existing values.
+ * Finds the insertion point for a missing property within a container's scope.
+ * Returns the line to insert after and the indent to use, or undefined if the container can't be found.
  */
+function findInsertionPointForProperty(
+  lines: string[],
+  subPath: { type: string; name: string }[]
+): { insertAfterLine: number; indent: number } | undefined {
+  // Navigate to the container (all elements except the trailing property)
+  const containerPath = subPath.slice(0, -1);
+
+  let startLine = 0;
+  let endLine = lines.length;
+
+  for (const element of containerPath) {
+    const line = findAlElementLine(lines, element, startLine, endLine);
+    if (line === undefined) { return undefined; }
+    startLine = line;
+    endLine = findAlScopeEnd(lines, line);
+  }
+
+  // Find the opening brace of the container scope
+  for (let i = startLine; i < endLine; i++) {
+    if (lines[i].includes("{")) {
+      // Determine indent from the first non-empty line inside the scope
+      for (let j = i + 1; j < endLine; j++) {
+        const trimmed = lines[j].trim();
+        if (trimmed && trimmed !== "}") {
+          return { insertAfterLine: i, indent: lines[j].search(/\S/) };
+        }
+      }
+      // Empty scope — use container indent + 4
+      const containerIndent = lines[startLine].search(/\S/);
+      return { insertAfterLine: i, indent: (containerIndent >= 0 ? containerIndent : 0) + 4 };
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Resolves AL source locations for each trans-unit using the already-loaded file lines,
  * avoiding a full workspace scan.
@@ -416,15 +422,89 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
         continue;
       }
 
+      // Skip procedure/trigger declarations — translations should never be written onto these lines
+      if (/^\s*(?:(?:local\s+|internal\s+)?procedure|trigger)\b/i.test(lineText)) {
+        continue;
+      }
+
       const indent = lineText.length - lineText.trimStart().length;
       tu.alLocation = new vscode.Location(
         header.fileUri,
         new vscode.Range(targetLine, indent, targetLine, lineText.length)
       );
     } else {
-      logger.log(`Could not find AL source for: ${tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ")}`);
+      // Property is missing — try to find the container so we can insert it
+      if (tu.propertyName && tu.propertyName !== "Label" && subPath.length > 0 && subPath[subPath.length - 1].type === "Property") {
+        const insertion = findInsertionPointForProperty(header.lines, subPath);
+        if (insertion) {
+          tu.missingProperty = { ...insertion, propertyName: tu.propertyName };
+        } else {
+          const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
+          logger.log(`Could not find AL container for missing property "${tu.propertyName}". Path: ${path}, Source: "${tu.source}", File: ${header.fileUri.fsPath}`);
+        }
+      } else {
+        const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
+        logger.log(`Could not find AL source for trans-unit. Path: ${path}, Property: ${tu.propertyName ?? "(none)"}, Source: "${tu.source}", File: ${header.fileUri.fsPath}, XLF line: ${tu.lineNumber}`);
+      }
     }
   }
+}
+
+/**
+ * Inserts missing property lines into the AL file for trans-units that have `missingProperty` set.
+ * Each property is inserted with its source value (from the .g.xlf) as a bare property line.
+ * After calling this, re-read the file lines and re-resolve locations so that
+ * `applyTranslationsToAlFile` can add translations to the newly inserted lines.
+ * @returns The number of properties inserted.
+ */
+export async function insertMissingPropertiesInAlFile(
+  fileUri: vscode.Uri,
+  transUnits: TransUnit[]
+): Promise<number> {
+  const toInsert = transUnits.filter(tu => tu.missingProperty);
+  if (toInsert.length === 0) {
+    return 0;
+  }
+
+  const document = await vscode.workspace.openTextDocument(fileUri);
+
+  // Sort descending by insertion line so earlier insertions don't shift later ones
+  toInsert.sort((a, b) => b.missingProperty!.insertAfterLine - a.missingProperty!.insertAfterLine);
+
+  // Deduplicate: if two trans-units want the same property at the same container, insert only once
+  const seen = new Set<string>();
+  const workspaceEdit = new vscode.WorkspaceEdit();
+  let insertCount = 0;
+
+  for (const tu of toInsert) {
+    const mp = tu.missingProperty!;
+    const key = `${mp.insertAfterLine}|${mp.propertyName}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const escapedSource = (tu.source ?? "").replace(/'/g, "''");
+    const indent = " ".repeat(mp.indent);
+    const newLine = `${indent}${mp.propertyName} = '${escapedSource}';\n`;
+
+    // Insert on the line after the opening brace
+    const insertPosition = new vscode.Position(mp.insertAfterLine + 1, 0);
+    workspaceEdit.insert(document.uri, insertPosition, newLine);
+    insertCount++;
+  }
+
+  if (insertCount > 0) {
+    await vscode.workspace.applyEdit(workspaceEdit);
+    await document.save();
+  }
+
+  // Clear missingProperty flags so the second resolve pass starts fresh
+  for (const tu of transUnits) {
+    tu.missingProperty = undefined;
+  }
+
+  return insertCount;
 }
 
 export async function applyTranslationsToAlFile(
@@ -435,7 +515,6 @@ export async function applyTranslationsToAlFile(
 ): Promise<void> {
   const toApply = transUnits.filter(tu => tu.alLocation && tu.translations.size > 0);
   if (toApply.length === 0) {
-    logger.log("No translations to apply.");
     return;
   }
 
@@ -492,7 +571,6 @@ export async function applyTranslationsToAlFile(
           askEdit.replace(document.uri, document.lineAt(line).range, newLineText);
           await vscode.workspace.applyEdit(askEdit);
           anyEditsApplied = true;
-          logger.log(`Updated line ${line + 1}: ${tu.propertyName} with ${tu.translations.size} translation(s)`);
         }
         continue;
       }
@@ -509,7 +587,6 @@ export async function applyTranslationsToAlFile(
 
     workspaceEdit.replace(document.uri, document.lineAt(line).range, newLineText);
     editCount++;
-    logger.log(`Updated line ${line + 1}: ${tu.propertyName} with ${tu.translations.size} translation(s)`);
   }
 
   if (editCount > 0) {
@@ -762,6 +839,60 @@ function mergeLangEntries(existing: string[], incoming: string[], method: string
   return Array.from(result.values());
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * Finds the AL file in the workspace that matches the given object type and name,
+ * and returns its parsed header.
+ */
+export async function findAlFileByObject(objectType: string, objectName: string): Promise<ALObjectHeader | undefined> {
+  const lowerType = objectType.toLowerCase();
+  const escapedName = objectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const objectPattern = new RegExp(
+    `^\\s*${lowerType}\\s+\\d+\\s+(?:"${escapedName}"|${escapedName})(?:\\s|$)`,
+    "im"
+  );
+
+  const alFiles = await vscode.workspace.findFiles("**/*.al");
+  for (const fileUri of alFiles) {
+    let content: string;
+    try {
+      const bytes = await vscode.workspace.fs.readFile(fileUri);
+      content = Buffer.from(bytes).toString("utf8");
+    } catch {
+      continue;
+    }
+
+    if (objectPattern.test(content)) {
+      const lines = content.split(/\r?\n/);
+      return getALObjectHeader(lines, fileUri);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Reads all .al files once and builds an index keyed by "objectType|objectName".
+ * Returns a Map for O(1) lookups per object.
+ */
+export async function buildAlFileIndex(): Promise<Map<string, ALObjectHeader>> {
+  const index = new Map<string, ALObjectHeader>();
+  const alFiles = await vscode.workspace.findFiles("**/*.al");
+
+  for (const fileUri of alFiles) {
+    let content: string;
+    try {
+      const bytes = await vscode.workspace.fs.readFile(fileUri);
+      content = Buffer.from(bytes).toString("utf8");
+    } catch {
+      continue;
+    }
+
+    const lines = content.split(/\r?\n/);
+    const header = tryGetALObjectHeader(lines, fileUri);
+    if (header) {
+      const key = `${header.objectType}|${header.objectName}`;
+      index.set(key, header);
+    }
+  }
+
+  return index;
 }

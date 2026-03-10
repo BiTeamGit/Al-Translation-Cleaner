@@ -1,5 +1,5 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/biteam.al-translation-cleaner)
-![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/biteam.al-translation-cleaner?color=blue)
+![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/biteam.al-translation-cleaner?color=green)
 
 # Introduction
 
@@ -7,9 +7,13 @@ AL Translation Cleaner is a VS Code extension that automatically inserts missing
 
 ## Features
 
-### ATC: Find Translations in File
+### ATC: Find Translations in AL File
 
-Finds all translations for the selected file and adds missing translations if needed.
+Finds all translations for the selected AL file and adds missing translations if needed.
+
+### ATC: Find Translations in Xliff File
+
+Finds all translations in the XLIFF file and writes all missing translations for that language into the corresponding files.
 
 ## Extension Settings
 
