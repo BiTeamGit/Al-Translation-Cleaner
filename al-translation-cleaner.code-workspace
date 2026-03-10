@@ -23,6 +23,16 @@
     "editor.formatOnType": true,
     "typescript.tsdk": "extension\\node_modules\\typescript\\lib",
     "powershell.cwd": "extension",
+    "todo-tree.general.tags": [
+      "BUG",
+      "HACK",
+      "FIXME",
+      "TODO",
+      "XXX",
+      "[ ]",
+      "[x]",
+      "REMOVE"
+    ],
   },
   "extensions": {
     "recommendations": []
