@@ -12,3 +12,12 @@ export function setLogger(newLogger: ILogger): void {
 export function appendTimestamp(line?: string): string {
     return "[" + timestamp("HH:mm:ss") + "]" + line;
 }
+
+export function throwErrorAndLog(
+    action: string,
+    error: Error
+): never {
+    logger.error(`[${action}] ${error.message}`);
+    logger.log(`Stack trace: ${error.stack}`);
+    throw error;
+}
