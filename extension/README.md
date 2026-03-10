@@ -10,7 +10,7 @@ AL Translation Cleaner is a VS Code extension that automatically inserts missing
 
 Finds all translations for the selected AL file and adds missing translations if needed.
 
-### ATC: Find Translations in Xliff File
+### ATC: Write Translations in current Xliff File to AL File Comments
 
 Finds all translations in the XLIFF file and writes all missing translations for that language into the corresponding files.
 

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { writeTranslationsToCommentsInALFile, findTranslationsInXliffFile } from './ATCFunctions';
+import { writeTranslationsToCommentsInALFile, writeTranslationsFromXliffToALFile } from './ATCFunctions';
 import { setLogger } from './logging/LogHelper';
 import { OutputLogger } from './logging/OutputLogger';
 
@@ -9,7 +9,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('atc.writeTranslationsToCommentsInALFile', writeTranslationsToCommentsInALFile),
-        vscode.commands.registerCommand('atc.findTranslationsInXliffFile', findTranslationsInXliffFile)
+        vscode.commands.registerCommand('atc.writeTranslationsFromXliffToALFile', writeTranslationsFromXliffToALFile)
     );
 
 }

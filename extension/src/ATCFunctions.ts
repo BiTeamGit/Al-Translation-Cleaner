@@ -95,17 +95,17 @@ async function gatherXliffFiles(header: ReturnType<typeof getALObjectHeader>): P
  * Finds all AL objects referenced in the currently active XLF file and applies
  * only the translations from that single XLF file to the corresponding AL files.
  */
-export async function findTranslationsInXliffFile() {
-    logger.log("Executing findTranslationsInXliffFile command...");
-    const status = vscode.window.setStatusBarMessage("ATC: Find Translations in XLF File...");
+export async function writeTranslationsFromXliffToALFile() {
+    logger.log("Executing writeTranslationsFromXliffToALFile command...");
+    const status = vscode.window.setStatusBarMessage("ATC: Write Translations in current Xliff File to AL File Comments...");
 
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
-        logger.log("findTranslationsInXliffFile command completed.");
+        logger.log("writeTranslationsFromXliffToALFile command completed.");
         return;
     }
     if (path.extname(activeEditor.document.uri.fsPath) !== '.xlf') {
-        throwErrorAndLog("findTranslationsInXliffFile", new Error("Active file is not an XLF file"));
+        throwErrorAndLog("writeTranslationsFromXliffToALFile", new Error("Active file is not an XLF file"));
     }
 
     const settings = getSettings();
@@ -175,6 +175,6 @@ export async function findTranslationsInXliffFile() {
         }
     });
 
-    logger.log("findTranslationsInXliffFile command completed.");
+    logger.log("writeTranslationsFromXliffToALFile command completed.");
     status.dispose();
 }
