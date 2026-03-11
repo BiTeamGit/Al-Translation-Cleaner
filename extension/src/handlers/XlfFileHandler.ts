@@ -213,42 +213,80 @@ function buildTransUnitKey(transUnit: TransUnit): string {
  * @returns An array of objects representing the element path, each containing a type and name.
  */
 function parseXliffElementPath(transUnitId: string, xliffGeneratorNote: string): { type: string; name: string }[] {
-  const idParts = transUnitId.split(" ").filter((x) => x !== "-");
-  const types = idParts.filter((x) => isNaN(Number(x)));
-  if (types.length === 0) {
+  if (!xliffGeneratorNote.trim()) {
+    return [];
+  }
+
+  // The XLIFF note carries the real hierarchy (e.g. Rendering Layout), while
+  // trans-unit IDs may only include a subset of path segments.
+  const segments = xliffGeneratorNote.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+  if (segments.length === 0) {
     return [];
   }
 
   const result: { type: string; name: string }[] = [];
-  let remainingNote = xliffGeneratorNote;
-
-  for (let i = 0; i < types.length; i++) {
-    const type = types[i];
-    const prefix = type + " ";
-
-    if (!remainingNote.startsWith(prefix)) {
-      break;
+  for (const segment of segments) {
+    const parsed = parseNoteSegment(segment);
+    if (!parsed) {
+      continue;
     }
-
-    remainingNote = remainingNote.substring(prefix.length);
-    let name: string;
-
-    if (i < types.length - 1) {
-      const nextType = types[i + 1];
-      const seperatorIndex = remainingNote.indexOf(` - ${nextType}`);
-      if (seperatorIndex === -1) {
-        name = remainingNote;
-        remainingNote = "";
-      } else {
-        name = remainingNote.substring(0, seperatorIndex);
-        remainingNote = remainingNote.substring(seperatorIndex + 3);
-      }
-    } else {
-      name = remainingNote;
-    }
-    result.push({ type, name: formatName(name) });
+    result.push({ type: parsed.type, name: formatName(parsed.name) });
   }
+
   return result;
+}
+
+function parseNoteSegment(segment: string): { type: string; name: string } | undefined {
+  const normalized = segment.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const typePrefixes: Array<{ notePrefix: string; normalizedType: string }> = [
+    { notePrefix: "Rendering Layout", normalizedType: "RenderingLayout" },
+    { notePrefix: "Report Label", normalizedType: "ReportLabel" },
+    { notePrefix: "Named Type", normalizedType: "NamedType" },
+    { notePrefix: "Enum Value", normalizedType: "EnumValue" },
+    { notePrefix: "Data Item", normalizedType: "DataItem" },
+    { notePrefix: "Control AddIn", normalizedType: "ControlAddIn" },
+    { notePrefix: "Permission Set", normalizedType: "PermissionSet" },
+    { notePrefix: "Table Extension", normalizedType: "TableExtension" },
+    { notePrefix: "Page Extension", normalizedType: "PageExtension" },
+    { notePrefix: "Report Extension", normalizedType: "ReportExtension" },
+    { notePrefix: "Enum Extension", normalizedType: "EnumExtension" },
+    { notePrefix: "Xml Port", normalizedType: "XmlPort" },
+    { notePrefix: "Method", normalizedType: "Method" },
+    { notePrefix: "Property", normalizedType: "Property" },
+    { notePrefix: "Rendering", normalizedType: "Rendering" },
+    { notePrefix: "Layout", normalizedType: "Layout" },
+    { notePrefix: "Action", normalizedType: "Action" },
+    { notePrefix: "Control", normalizedType: "Control" },
+    { notePrefix: "Field", normalizedType: "Field" },
+    { notePrefix: "Column", normalizedType: "Column" },
+    { notePrefix: "DataItem", normalizedType: "DataItem" },
+    { notePrefix: "Value", normalizedType: "Value" },
+    { notePrefix: "Report", normalizedType: "Report" },
+    { notePrefix: "Page", normalizedType: "Page" },
+    { notePrefix: "Table", normalizedType: "Table" },
+    { notePrefix: "Codeunit", normalizedType: "Codeunit" },
+    { notePrefix: "Query", normalizedType: "Query" },
+    { notePrefix: "Enum", normalizedType: "Enum" },
+    { notePrefix: "Profile", normalizedType: "Profile" },
+  ];
+
+  for (const prefix of typePrefixes) {
+    const match = normalized.match(new RegExp(`^${prefix.notePrefix}\\s+(.+)$`, "i"));
+    if (match) {
+      return { type: prefix.normalizedType, name: match[1].trim() };
+    }
+  }
+
+  const fallback = normalized.match(/^(\w+)\s+(.+)$/);
+  if (fallback) {
+    return { type: fallback[1], name: fallback[2].trim() };
+  }
+
+  return undefined;
 }
 
 function formatName(text: string): string {

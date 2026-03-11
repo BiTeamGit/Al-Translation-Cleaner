@@ -4,6 +4,14 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.0.1] - 2026-03-11
+
+### Fixed
+
+* Translations arent written into Report Columns anymore
+* Recognizing the Difference between Report Caption and Report Rendering Layout Caption
+* Existing(Non-translatio) Comments are written as //Comments at the end of the line because of errors with the AL Translation Center Tool
+
 ## [1.0.0] - 2026-03-10
 
 ### Added
