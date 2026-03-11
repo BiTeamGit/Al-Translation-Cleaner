@@ -710,14 +710,15 @@ function buildTranslatedPropertyLine(
     const { placeholderDescriptions, existingLangEntries, otherComments } = parseCommentParts(commentInfo.value);
     const mergedLangEntries = mergeLangEntries(existingLangEntries, newLangEntries, commentMethod);
 
-    if (mergedLangEntries.length === 0 && placeholderDescriptions.length === 0 && otherComments.length === 0) {
-      return result !== lineText ? result : undefined;
-    }
-
-    // Order: placeholder descriptions, translations, other comments
-    const allParts = [...placeholderDescriptions, ...mergedLangEntries, ...otherComments];
-    const newComment = `, ${commentInfo.keyword} = '${allParts.join(",")}'`;
+    // Keep only placeholders and language entries inside Comment = '...'.
+    const commentParts = [...placeholderDescriptions, ...mergedLangEntries];
+    const newComment = commentParts.length > 0
+      ? `, ${commentInfo.keyword} = '${commentParts.join(",")}'`
+      : "";
     result = result.substring(0, commentInfo.start) + newComment + result.substring(commentInfo.end);
+
+    // Move non-language comments to a trailing line comment at end-of-line.
+    result = appendOtherCommentsAsLineComment(result, otherComments);
     return result !== lineText ? result : undefined;
   }
 
@@ -734,6 +735,15 @@ function buildTranslatedPropertyLine(
   const commentValue = newLangEntries.join(",");
   result = result.substring(0, semicolonIndex) + `, Comment = '${commentValue}'` + result.substring(semicolonIndex);
   return result !== lineText ? result : undefined;
+}
+
+function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
+  if (otherComments.length === 0) {
+    return lineText;
+  }
+
+  const trailingText = otherComments.join(", ");
+  return lineText.replace(/\s*$/, "") + ` // ${trailingText}`;
 }
 
 /**
