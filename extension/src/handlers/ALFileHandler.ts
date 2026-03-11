@@ -129,15 +129,23 @@ function findTargetLineInAlFile(lines: string[], subPath: { type: string; name: 
 
   let startLine = 0;
   let endLine = lines.length;
+  let pathResolved = true;
 
   for (let depth = 0; depth < subPath.length; depth++) {
     const containerLine = findAlElementLine(lines, subPath[depth], startLine, endLine);
     if (containerLine === undefined) {
+      pathResolved = false;
       break;
     }
 
     startLine = containerLine;
     endLine = findAlScopeEnd(lines, containerLine);
+  }
+
+  // Avoid accidental matches (e.g. first Caption in report) when a nested path
+  // segment like RenderingLayout could not be resolved.
+  if (!pathResolved && subPath.length > 1) {
+    return undefined;
   }
 
   const lastElement = subPath[subPath.length - 1];
@@ -240,6 +248,24 @@ function findAlElementLine(
             "i"
           ).test(trimmed)
         ) {
+          return i;
+        }
+        break;
+
+      case "layout":
+      case "renderinglayout":
+        if (
+          new RegExp(
+            `^layout\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            "i"
+          ).test(trimmed)
+        ) {
+          return i;
+        }
+        break;
+
+      case "rendering":
+        if (/^rendering\b/i.test(trimmed)) {
           return i;
         }
         break;
@@ -513,10 +539,30 @@ export async function applyTranslationsToAlFile(
   translationMethod: string,
   languageOrder: string[]
 ): Promise<void> {
-  const toApply = transUnits.filter(tu => tu.alLocation && tu.translations.size > 0);
-  if (toApply.length === 0) {
+  const candidates = transUnits.filter(tu => tu.alLocation && tu.translations.size > 0);
+  if (candidates.length === 0) {
     return;
   }
+
+  // Guard against path-resolution collisions: only one trans-unit may write to a
+  // line. Prefer the less nested path for deterministic behavior.
+  const byLine = new Map<number, TransUnit>();
+  for (const tu of candidates) {
+    const line = tu.alLocation!.range.start.line;
+    const existing = byLine.get(line);
+    if (!existing) {
+      byLine.set(line, tu);
+      continue;
+    }
+
+    const existingDepth = existing.elementPath.length;
+    const currentDepth = tu.elementPath.length;
+    if (currentDepth < existingDepth) {
+      byLine.set(line, tu);
+    }
+  }
+
+  const toApply = Array.from(byLine.values());
 
   const document = await vscode.workspace.openTextDocument(fileUri);
 
