@@ -676,6 +676,10 @@ function buildTranslatedPropertyLine(
   }
 
   // No existing Comment — insert before the trailing semicolon
+  if (/^\s*column\s*\(/i.test(result)) {
+    return result !== lineText ? result : undefined;
+  }
+
   const semicolonIndex = result.lastIndexOf(";");
   if (semicolonIndex === -1) {
     return result !== lineText ? result : undefined;
