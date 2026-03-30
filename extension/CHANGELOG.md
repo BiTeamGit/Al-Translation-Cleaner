@@ -13,6 +13,7 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 ### Fixed
 
 * Unknown Properties were being written into AL Files, which caused an error. They are now logged and ignored
+* Variables with same name written into wrong document section
 
 ## [1.0.1] - 2026-03-11
 
