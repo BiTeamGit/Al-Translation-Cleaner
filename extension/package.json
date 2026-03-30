@@ -2,7 +2,7 @@
   "name": "al-translation-cleaner",
   "displayName": "AL Translation Cleaner",
   "description": "Fix your AL translations with ease! This extension helps you transfer missing translations from XLIFF files to your .al files, ensuring your Dynamics 365 Business Central projects are always up-to-date and properly localized.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "icon": "assets/icon.png",
   "publisher": "BiTeam",
   "license": "MIT",
@@ -83,12 +83,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        },
-        "ATC.addMissingProperties": {
-          "type": "boolean",
-          "scope": "window",
-          "description": "When enabled, properties that are completely missing from .al files (e.g. Caption) will be inserted before adding translations. When disabled, only existing properties receive translations.",
-          "default": false
         }
       }
     }

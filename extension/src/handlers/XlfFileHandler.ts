@@ -37,6 +37,7 @@ const PROPERTY_MAP: Record<string, string> = {
   "2879845413": "Label",
   "3519868930": "ReportLabel",
   "3333885854": "NamedType",
+  "2166945456": "Summary",
 };
 
 /**
@@ -166,6 +167,10 @@ export function mergeTranslations(xliffFiles: XliffFile[], languageMapping: { [t
       if (!tu.propertyName || tu.elementPath.length === 0) {
         continue;
       }
+      if (tu.propertyName.startsWith("Property_")) {
+        logger.log(`Skipping unknown property "${tu.propertyName}" for trans-unit at line ${tu.lineNumber}`);
+        continue;
+      }
       const key = buildTransUnitKey(tu);
       if (!transUnitMap.has(key)) {
         transUnitMap.set(key, { ...tu, translations: new Map() });
@@ -185,6 +190,9 @@ export function mergeTranslations(xliffFiles: XliffFile[], languageMapping: { [t
     }
     for (const tu of xliffFile.transUnits) {
       if (!tu.propertyName || !tu.translation || tu.elementPath.length === 0) {
+        continue;
+      }
+      if (tu.propertyName.startsWith("Property_")) {
         continue;
       }
       const key = buildTransUnitKey(tu);

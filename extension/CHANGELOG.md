@@ -4,6 +4,21 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.0.2] - 2026-03-30
+
+### Added
+
+* Summary Property
+
+### Fixed
+
+* Unknown Properties were being written into AL Files, which caused an error. They are now logged and ignored
+* Variables with same name written into wrong document section
+
+### Removed
+
+* Removed Setting: ATC.addMissingProperties temporarily, since it was causing unanticipated errors without instant solution
+
 ## [1.0.1] - 2026-03-11
 
 ### Fixed

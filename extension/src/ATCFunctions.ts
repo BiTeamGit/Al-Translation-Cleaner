@@ -51,15 +51,6 @@ export async function writeTranslationsToCommentsInALFile() {
         progress.report({ message: "Resolving AL source locations..." });
         resolveAlLocationsInFile(transUnits, header);
 
-        // Insert any missing properties, then re-resolve so they get an alLocation
-        if (settings.addMissingProperties) {
-            const inserted = await insertMissingPropertiesInAlFile(activeEditor.document.uri, transUnits);
-            if (inserted > 0) {
-                const newLines = activeEditor.document.getText().split(/\r?\n/);
-                header.lines = newLines;
-                resolveAlLocationsInFile(transUnits, header);
-            }
-        }
         progress.report({ increment: 20 });
 
         // Write translations to the AL file
@@ -158,15 +149,6 @@ export async function writeTranslationsFromXliffToALFile() {
             // Resolve AL source locations in the file
             resolveAlLocationsInFile(transUnits, header);
 
-            // Insert any missing properties, then re-resolve so they get an alLocation
-            if (settings.addMissingProperties) {
-                const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
-                if (inserted > 0) {
-                    const doc = await vscode.workspace.openTextDocument(header.fileUri);
-                    header.lines = doc.getText().split(/\r?\n/);
-                    resolveAlLocationsInFile(transUnits, header);
-                }
-            }
 
             // Apply translations
             await applyTranslationsToAlFile(header.fileUri, transUnits, settings.translationMethod, languageOrder);
@@ -261,16 +243,6 @@ export async function writeTranslationsFromAllXliffToALFiles() {
 
             // Resolve AL source locations in the file
             resolveAlLocationsInFile(transUnits, header);
-
-            // Insert any missing properties, then re-resolve so they get an alLocation
-            if (settings.addMissingProperties) {
-                const inserted = await insertMissingPropertiesInAlFile(header.fileUri, transUnits);
-                if (inserted > 0) {
-                    const doc = await vscode.workspace.openTextDocument(header.fileUri);
-                    header.lines = doc.getText().split(/\r?\n/);
-                    resolveAlLocationsInFile(transUnits, header);
-                }
-            }
 
             // Apply translations
             await applyTranslationsToAlFile(header.fileUri, transUnits, settings.translationMethod, languageOrder);
