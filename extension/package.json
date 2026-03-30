@@ -83,6 +83,12 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "ATC.addMissingProperties": {
+          "type": "boolean",
+          "scope": "window",
+          "description": "When enabled, properties that are completely missing from .al files (e.g. Caption) will be inserted before adding translations. When disabled, only existing properties receive translations.",
+          "default": false
         }
       }
     }
