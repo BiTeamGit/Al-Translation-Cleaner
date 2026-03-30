@@ -288,6 +288,16 @@ function findAlElementLine(
         break;
 
       case "namedtype":
+        // When scanning from an outer scope, skip past trigger/procedure bodies so that
+        // a local `var` label inside a trigger (e.g. Text50001 inside OnValidate) is not
+        // confused with an object-level `var` label that happens to share the same name.
+        // When the path has already narrowed us INTO a trigger (startLine === trigger line),
+        // the loop begins at i === startLine so the guard `i > startLine` is false and we
+        // do NOT skip — preserving correct resolution for trigger-local labels.
+        if (i > startLine && /^(?:(?:local\s+|internal\s+)?procedure|trigger)\b/i.test(trimmed)) {
+          i = findBeginEndScopeEnd(lines, i) - 1; // -1 because the for-loop will i++
+          continue;
+        }
         if (new RegExp(`^"?${escapedName}"?\\s*:`, "i").test(trimmed)) {
           return i;
         }
