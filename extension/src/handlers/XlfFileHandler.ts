@@ -37,6 +37,7 @@ const PROPERTY_MAP: Record<string, string> = {
   "2879845413": "Label",
   "3519868930": "ReportLabel",
   "3333885854": "NamedType",
+  "2166945456": "Summary",
 };
 
 /**
