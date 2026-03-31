@@ -9,6 +9,7 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 ### Fixed
 
 * translations were sometimes directly taken from the .g.xlf note, not the translation files
+* fields in pages were sometimes matched wrong
 
 ## [1.0.2] - 2026-03-30
 
