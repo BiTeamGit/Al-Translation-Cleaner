@@ -248,9 +248,21 @@ function parseXliffElementPath(transUnitId: string, xliffGeneratorNote: string):
     return [];
   }
 
-  // The XLIFF note carries the real hierarchy (e.g. Rendering Layout), while
-  // trans-unit IDs may only include a subset of path segments.
-  const segments = xliffGeneratorNote.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+  // Split on ' - ' then re-merge fragments that don't start with a known type
+  // keyword. This handles element names that contain ' - '
+  // (e.g. group("FFC Inventory Valuation - Group") produces the XLIFF note
+  // segment "Action FFC Inventory Valuation - Group" which naive splitting
+  // would break into "Action FFC Inventory Valuation" + "Group").
+  const rawParts = xliffGeneratorNote.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+  const segments: string[] = [];
+  for (const part of rawParts) {
+    if (segments.length > 0 && !isNoteSegmentBoundary(part)) {
+      segments[segments.length - 1] += " - " + part;
+    } else {
+      segments.push(part);
+    }
+  }
+
   if (segments.length === 0) {
     return [];
   }
@@ -265,6 +277,28 @@ function parseXliffElementPath(transUnitId: string, xliffGeneratorNote: string):
   }
 
   return result;
+}
+
+const NOTE_TYPE_PREFIXES = [
+  "Rendering Layout", "Report Label", "Named Type", "Enum Value", "Data Item",
+  "Control AddIn", "Permission Set", "Table Extension", "Page Extension",
+  "Report Extension", "Enum Extension", "Xml Port",
+  "Method", "Property", "Rendering", "Layout", "Action", "Control", "Field",
+  "Column", "DataItem", "Value", "Report", "Page", "Table", "Codeunit",
+  "Query", "Enum", "Profile",
+];
+
+function isNoteSegmentBoundary(segment: string): boolean {
+  // "Rendering" can appear as a standalone keyword (no name after it)
+  if (/^rendering$/i.test(segment)) {
+    return true;
+  }
+  // Otherwise, a segment boundary starts with a known type prefix followed by a space and name
+  return NOTE_TYPE_PREFIXES.some(prefix =>
+    segment.length > prefix.length &&
+    segment.substring(0, prefix.length).toLowerCase() === prefix.toLowerCase() &&
+    segment[prefix.length] === " "
+  );
 }
 
 function parseNoteSegment(segment: string): { type: string; name: string } | undefined {
