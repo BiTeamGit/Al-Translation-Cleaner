@@ -78,8 +78,29 @@ function extractTransUnitFromLine(lines: string[], lineIndex: number): TransUnit
   }
 
   const transUnitId = idMatch[1];
-  const sourceMatch = lines[lineIndex + 1]?.match(/<source>(.*)<\/source>/);
-  const translationMatch = lines[lineIndex + 2]?.match(/<target[^>]*>(.*)<\/target>/);
+
+  // Search for <source> and <target> within the trans-unit block instead of
+  // relying on hardcoded line offsets — element order can vary between files.
+  let source: string | undefined;
+  let translation: string | undefined;
+  for (let j = lineIndex + 1; j < lines.length && j - lineIndex <= 20; j++) {
+    if (/<\/trans-unit>/i.test(lines[j])) {
+      break;
+    }
+    if (source === undefined) {
+      const sourceMatch = lines[j].match(/<source>(.*)<\/source>/);
+      if (sourceMatch) {
+        source = formatName(sourceMatch[1]);
+      }
+    }
+    if (translation === undefined) {
+      const targetMatch = lines[j].match(/<target[^>]*>(.*)<\/target>/);
+      if (targetMatch) {
+        translation = formatName(targetMatch[1]);
+      }
+    }
+  }
+
   const note = findXliffGeneratorNote(lines, lineIndex);
   const elementPath = note ? parseXliffElementPath(transUnitId, note) : [];
   let propertyName = parsePropertyNameFromId(transUnitId);
@@ -91,8 +112,8 @@ function extractTransUnitFromLine(lines: string[], lineIndex: number): TransUnit
 
   return {
     lineNumber: lineIndex,
-    source: sourceMatch ? formatName(sourceMatch[1]) : "",
-    translation: translationMatch ? formatName(translationMatch[1]) : undefined,
+    source: source ?? "",
+    translation: translation || undefined,
     elementPath,
     propertyName,
     translations: new Map(),
@@ -173,7 +194,9 @@ export function mergeTranslations(xliffFiles: XliffFile[], languageMapping: { [t
       }
       const key = buildTransUnitKey(tu);
       if (!transUnitMap.has(key)) {
-        transUnitMap.set(key, { ...tu, translations: new Map() });
+        // Keep only the source text from the .g.xlf; discard any <target> value
+        // so that translations come exclusively from language-specific files.
+        transUnitMap.set(key, { ...tu, translation: undefined, translations: new Map() });
       }
     }
   }
@@ -348,6 +371,13 @@ export interface GroupedXlfResult {
   transUnitsByObject: Map<string, TransUnit[]>;
 }
 
+export interface GroupedXlfByIdResult {
+  filePath: string;
+  targetLanguage: string;
+  /** Trans-units grouped by object identifier from the trans-unit ID (e.g., "Table 1234567") */
+  transUnitsByObjectId: Map<string, TransUnit[]>;
+}
+
 /**
  * Parses the entire XLF document in a single pass, grouping all trans-units
  * by their root AL object (objectType|objectName).
@@ -376,4 +406,45 @@ export function parseXlfGroupedByObject(document: vscode.TextDocument): GroupedX
   }
 
   return { filePath: document.uri.fsPath, targetLanguage, transUnitsByObject };
+}
+
+/**
+ * Parses the entire XLF document in a single pass, grouping all trans-units
+ * by the object identifier prefix from the trans-unit ID (e.g., "Table 1234567").
+ * This is more reliable than note-based grouping as IDs are consistent across
+ * .g.xlf and language-specific files.
+ */
+export function parseXlfGroupedByObjectId(document: vscode.TextDocument): GroupedXlfByIdResult {
+  const lines = document.getText().split("\n");
+  const targetLanguage = path.basename(document.uri.fsPath).endsWith(".g.xlf")
+    ? ""
+    : findTargetLanguageInFile(lines);
+
+  const transUnitsByObjectId = new Map<string, TransUnit[]>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const idMatch = lines[i].match(/<trans-unit\s+id="([^"]*)"[^>]*>/i);
+    if (!idMatch) {
+      continue;
+    }
+
+    const firstSegment = idMatch[1].split(" - ")[0];
+    if (!firstSegment) {
+      continue;
+    }
+
+    const transUnit = extractTransUnitFromLine(lines, i);
+    if (!transUnit) {
+      continue;
+    }
+
+    let group = transUnitsByObjectId.get(firstSegment);
+    if (!group) {
+      group = [];
+      transUnitsByObjectId.set(firstSegment, group);
+    }
+    group.push(transUnit);
+  }
+
+  return { filePath: document.uri.fsPath, targetLanguage, transUnitsByObjectId };
 }
