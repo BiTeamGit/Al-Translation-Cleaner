@@ -175,6 +175,10 @@ function findAlElementLine(
   const type = element.type.toLowerCase();
   const escapedName = element.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+  // For "control" type, prefer leaf controls over containers when names collide
+  // (e.g. area(content) vs field(Content; ...) on the same page).
+  let controlContainerFallback: number | undefined;
+
   for (let i = startLine; i < endLine && i < lines.length; i++) {
     const trimmed = lines[i].trim();
 
@@ -191,13 +195,24 @@ function findAlElementLine(
         break;
 
       case "control":
+        // Leaf controls: return immediately
         if (
           new RegExp(
-            `^(?:field|group|part|repeater|area|cuegroup|grid|fixed|usercontrol|label)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^(?:field|part|usercontrol|label)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
           return i;
+        }
+        // Container controls: remember first match but keep searching for a leaf
+        if (
+          controlContainerFallback === undefined &&
+          new RegExp(
+            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            "i"
+          ).test(trimmed)
+        ) {
+          controlContainerFallback = i;
         }
         break;
 
@@ -317,7 +332,7 @@ function findAlElementLine(
     }
   }
 
-  return undefined;
+  return controlContainerFallback ?? undefined;
 }
 
 function findAlScopeEnd(lines: string[], startLine: number): number {

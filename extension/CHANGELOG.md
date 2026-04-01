@@ -4,6 +4,14 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.0.3] - 2026-04-01
+
+### Fixed
+
+* translations were sometimes directly taken from the .g.xlf note, not the translation files
+* fields in pages were sometimes matched wrong
+* actions in groups were mapped wrong
+
 ## [1.0.2] - 2026-03-30
 
 ### Added

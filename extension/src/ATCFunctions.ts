@@ -2,7 +2,7 @@ import vscode from "vscode";
 import { logger, throwErrorAndLog } from "./logging/LogHelper";
 import path from "path";
 import { applyTranslationsToAlFile, buildAlFileIndex, findAlFileByObject, getALObjectHeader, insertMissingPropertiesInAlFile, resolveAlLocationsInFile } from "./handlers/ALFileHandler";
-import { getUniqueObjectsFromXlf, mergeTranslations, parseXlfGroupedByObject, searchForTransUnitIdInXliff, XliffFile } from './handlers/XlfFileHandler';
+import { getUniqueObjectsFromXlf, mergeTranslations, parseXlfGroupedByObject, parseXlfGroupedByObjectId, searchForTransUnitIdInXliff, XliffFile, GroupedXlfByIdResult } from './handlers/XlfFileHandler';
 import { getSettings } from "./settings/SettingsLoader";
 
 /**
@@ -163,6 +163,8 @@ export async function writeTranslationsFromXliffToALFile() {
 /**
  * Finds all XLF files in the workspace and applies translations from each
  * to the corresponding AL files.
+ * Uses the same ID-based trans-unit matching as writeTranslationsToCommentsInALFile
+ * to ensure consistent results.
  */
 export async function writeTranslationsFromAllXliffToALFiles() {
     logger.log("Executing writeTranslationsFromAllXliffToALFiles command...");
@@ -190,50 +192,49 @@ export async function writeTranslationsFromAllXliffToALFiles() {
         const alIndex = await buildAlFileIndex();
         progress.report({ increment: 10 });
 
-        // Parse all XLF files and group translations by AL object key
+        // Parse each XLF file once, grouping trans-units by object ID
         progress.report({ message: "Parsing XLF files..." });
-        const translationsByObject = new Map<string, XliffFile[]>();
-
+        const parsedXlfs: GroupedXlfByIdResult[] = [];
         for (const xlfUri of xlfFilesUri) {
-            const xlfDocument = await vscode.workspace.openTextDocument(xlfUri);
-            const groupedXlf = parseXlfGroupedByObject(xlfDocument);
-
-            for (const [objectKey, transUnitsForObject] of groupedXlf.transUnitsByObject) {
-                if (!translationsByObject.has(objectKey)) {
-                    translationsByObject.set(objectKey, []);
-                }
-                translationsByObject.get(objectKey)!.push({
-                    filePath: groupedXlf.filePath,
-                    targetLanguage: groupedXlf.targetLanguage,
-                    transUnits: transUnitsForObject,
-                });
-            }
+            const doc = await vscode.workspace.openTextDocument(xlfUri);
+            parsedXlfs.push(parseXlfGroupedByObjectId(doc));
         }
-        progress.report({ increment: 5 });
+        progress.report({ increment: 10 });
 
-        const uniqueObjectCount = translationsByObject.size;
-        if (uniqueObjectCount === 0) {
-            vscode.window.showInformationMessage("No AL objects found in XLIFF files.");
+        const alHeaders = Array.from(alIndex.values());
+        if (alHeaders.length === 0) {
+            vscode.window.showInformationMessage("No AL files found in the workspace.");
             return;
         }
 
         const languageOrder = Object.values(settings.languageMapping);
-        const progressPerObject = 80 / uniqueObjectCount;
+        const progressPerObject = 75 / alHeaders.length;
         let processedObjects = 0;
+        let objectsWithTranslations = 0;
 
-        // Process each unique AL object once, merging translations from all XLF files
-        for (const [objectKey, xliffFiles] of translationsByObject) {
-            const [objectType, objectName] = objectKey.split("|");
-
+        // For each AL file, look up matching trans-units from pre-parsed XLF maps
+        for (const header of alHeaders) {
             processedObjects++;
             progress.report({
-                message: `Processing ${objectType} "${objectName}" (${processedObjects}/${uniqueObjectCount})...`
+                message: `Processing ${header.objectType} "${header.objectName}" (${processedObjects}/${alHeaders.length})...`
             });
 
-            // Look up the AL file from the pre-built index
-            const header = alIndex.get(objectKey);
-            if (!header) {
-                logger.log(`Could not find AL file for ${objectType} "${objectName}"`);
+            const objectIdKey = `${header.objectType} ${header.objectId}`;
+
+            // Collect matching trans-units from each parsed XLF file
+            const xliffFiles: XliffFile[] = [];
+            for (const parsed of parsedXlfs) {
+                const transUnits = parsed.transUnitsByObjectId.get(objectIdKey);
+                if (transUnits && transUnits.length > 0) {
+                    xliffFiles.push({
+                        filePath: parsed.filePath,
+                        targetLanguage: parsed.targetLanguage,
+                        transUnits,
+                    });
+                }
+            }
+
+            if (xliffFiles.length === 0) {
                 progress.report({ increment: progressPerObject });
                 continue;
             }
@@ -247,10 +248,11 @@ export async function writeTranslationsFromAllXliffToALFiles() {
             // Apply translations
             await applyTranslationsToAlFile(header.fileUri, transUnits, settings.translationMethod, languageOrder);
 
+            objectsWithTranslations++;
             progress.report({ increment: progressPerObject });
         }
 
-        vscode.window.showInformationMessage(`Successfully processed ${uniqueObjectCount} AL object(s) from ${xlfFilesUri.length} XLIFF file(s).`);
+        vscode.window.showInformationMessage(`Successfully processed ${objectsWithTranslations} AL object(s) with translations from ${parsedXlfs.length} XLIFF file(s).`);
     });
 
     logger.log("writeTranslationsFromAllXliffToALFiles command completed.");
