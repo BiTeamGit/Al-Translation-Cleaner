@@ -9,6 +9,7 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 ### Fixed
 
 * Error where the first Enum Value got replaced
+* In PageExt there was Mapping Confusion between modify Action Captions and addAfter Field Captions
 
 ## [1.0.3] - 2026-04-01
 

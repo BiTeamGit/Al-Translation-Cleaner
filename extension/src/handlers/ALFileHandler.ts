@@ -243,6 +243,35 @@ function findAlElementLine(
         break;
       }
 
+      case "modify":
+        if (
+          new RegExp(
+            `^modify\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            "i"
+          ).test(trimmed)
+        ) {
+          return i;
+        }
+        break;
+
+      case "addafter":
+      case "addbefore":
+      case "addfirst":
+      case "addlast":
+      case "moveafter":
+      case "movebefore":
+      case "movefirst":
+      case "movelast":
+        if (
+          new RegExp(
+            `^${type}\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            "i"
+          ).test(trimmed)
+        ) {
+          return i;
+        }
+        break;
+
       case "enumvalue":
       case "value":
         if (
