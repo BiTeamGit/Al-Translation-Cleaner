@@ -520,11 +520,11 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
           tu.missingProperty = { ...insertion, propertyName: tu.propertyName };
         } else {
           const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
-          logger.log(`Could not find AL container for missing property "${tu.propertyName}". Path: ${path}, Source: "${tu.source}", File: ${header.fileUri.fsPath}`);
+          logger.log(`Could not find AL container for missing property "${tu.propertyName}". Path: ${path} , Source: "${tu.source}", File: ${header.fileUri.fsPath}`);
         }
       } else {
         const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
-        logger.log(`Could not find AL source for trans-unit. Path: ${path}, Property: ${tu.propertyName ?? "(none)"}, Source: "${tu.source}", File: ${header.fileUri.fsPath}, XLF line: ${tu.lineNumber}`);
+        logger.log(`Could not find AL source for trans-unit. Path: ${path} , Property: ${tu.propertyName ?? "(none)"}, Source: "${tu.source}", File: ${header.fileUri.fsPath}, XLF line: ${tu.lineNumber}`);
       }
     }
   }
