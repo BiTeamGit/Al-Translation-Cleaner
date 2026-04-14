@@ -603,11 +603,11 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
           tu.missingProperty = { ...insertion, propertyName: tu.propertyName };
         } else {
           const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
-          logger.log(`Could not find AL container for missing property "${tu.propertyName}". Path: ${path}, Source: "${tu.source}", File: ${header.fileUri.fsPath}`);
+          logger.log(`Could not find AL container for missing property "${tu.propertyName}". Path: ${path} , Source: "${tu.source}", File: ${header.fileUri.fsPath}`);
         }
       } else {
         const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
-        logger.log(`Could not find AL source for trans-unit. Path: ${path}, Property: ${tu.propertyName ?? "(none)"}, Source: "${tu.source}", File: ${header.fileUri.fsPath}, XLF line: ${tu.lineNumber}`);
+        logger.log(`Could not find AL source for trans-unit. Path: ${path} , Property: ${tu.propertyName ?? "(none)"}, Source: "${tu.source}", File: ${header.fileUri.fsPath}, XLF line: ${tu.lineNumber}`);
       }
     }
   }
@@ -717,24 +717,48 @@ export async function applyTranslationsToAlFile(
     }
 
     const lineText = document.lineAt(line).text;
+
+    // Detect Comment on the next line (multi-line property) and merge into one line
+    let fullLineText = lineText;
+    let commentOnNextLine = false;
+    let trailingLineComment = "";
+    if (line + 1 < document.lineCount) {
+      const nextLineText = document.lineAt(line + 1).text;
+      if (/^\s*Comment\s*=\s*'/i.test(nextLineText)) {
+        // Strip any trailing // comment from the first line before merging
+        let firstLine = lineText.trimEnd();
+        const splitResult = splitTrailingLineComment(firstLine);
+        if (splitResult.comment) {
+          firstLine = splitResult.code;
+          trailingLineComment = splitResult.comment;
+        }
+        fullLineText = firstLine + ' ' + nextLineText.trim();
+        commentOnNextLine = true;
+      }
+    }
+
+    const replaceRange = commentOnNextLine
+      ? new vscode.Range(document.lineAt(line).range.start, document.lineAt(line + 1).range.end)
+      : document.lineAt(line).range;
+
     let newLineText: string | undefined;
 
     switch (translationMethod) {
       case "replace":
-        newLineText = buildTranslatedPropertyLine(lineText, tu, "replace", true, languageOrder);
+        newLineText = buildTranslatedPropertyLine(fullLineText, tu, "replace", true, languageOrder);
         break;
 
       case "ask": {
-        const addOnlyLine = buildTranslatedPropertyLine(lineText, tu, "add", false, languageOrder);
-        const replaceTransLine = buildTranslatedPropertyLine(lineText, tu, "replace", false, languageOrder);
+        const addOnlyLine = buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder);
+        const replaceTransLine = buildTranslatedPropertyLine(fullLineText, tu, "replace", false, languageOrder);
 
         const hasModifications = replaceTransLine !== undefined
-          && replaceTransLine !== lineText
+          && replaceTransLine !== fullLineText
           && replaceTransLine !== addOnlyLine;
 
         if (hasModifications) {
           const choice = await vscode.window.showInformationMessage(
-            `Translations differ on line ${line + 1}. Replace existing translations?\nCurrent: ${lineText.trim()}\nProposed: ${replaceTransLine!.trim()}`,
+            `Translations differ on line ${line + 1}. Replace existing translations?\nCurrent: ${fullLineText.trim()}\nProposed: ${replaceTransLine!.trim()}`,
             "Replace", "Add missing only", "Skip", "Cancel all"
           );
           if (choice === "Cancel all") { return; }
@@ -749,9 +773,16 @@ export async function applyTranslationsToAlFile(
           newLineText = addOnlyLine;
         }
 
+        // When Comment was on a separate line, always apply to merge into one line
+        if (newLineText === undefined && commentOnNextLine) {
+          newLineText = fullLineText;
+        }
         if (newLineText !== undefined && newLineText !== lineText) {
+          if (trailingLineComment) {
+            newLineText = newLineText.replace(/\s*$/, "") + " " + trailingLineComment;
+          }
           const askEdit = new vscode.WorkspaceEdit();
-          askEdit.replace(document.uri, document.lineAt(line).range, newLineText);
+          askEdit.replace(document.uri, replaceRange, newLineText);
           await vscode.workspace.applyEdit(askEdit);
           anyEditsApplied = true;
         }
@@ -760,15 +791,23 @@ export async function applyTranslationsToAlFile(
 
       case "add":
       default:
-        newLineText = buildTranslatedPropertyLine(lineText, tu, "add", false, languageOrder);
+        newLineText = buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder);
         break;
     }
 
+    // When Comment was on a separate line, always apply to merge into one line
+    if (newLineText === undefined && commentOnNextLine) {
+      newLineText = fullLineText;
+    }
     if (newLineText === undefined || newLineText === lineText) {
       continue;
     }
 
-    workspaceEdit.replace(document.uri, document.lineAt(line).range, newLineText);
+    if (trailingLineComment) {
+      newLineText = newLineText.replace(/\s*$/, "") + " " + trailingLineComment;
+    }
+
+    workspaceEdit.replace(document.uri, replaceRange, newLineText);
     editCount++;
   }
 
@@ -872,6 +911,26 @@ function buildTranslatedPropertyLine(
   const commentValue = newLangEntries.join(",");
   result = result.substring(0, semicolonIndex) + `, Comment = '${commentValue}'` + result.substring(semicolonIndex);
   return result !== lineText ? result : undefined;
+}
+
+/**
+ * Splits a line into code and trailing `// comment`, respecting single-quoted strings.
+ * Returns the code portion (trimmed) and the `// ...` comment (empty string if none).
+ */
+function splitTrailingLineComment(line: string): { code: string; comment: string } {
+  let inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "'") {
+      if (inQuote && i + 1 < line.length && line[i + 1] === "'") {
+        i++; // skip escaped quote
+      } else {
+        inQuote = !inQuote;
+      }
+    } else if (!inQuote && line[i] === "/" && i + 1 < line.length && line[i + 1] === "/") {
+      return { code: line.substring(0, i).trimEnd(), comment: line.substring(i) };
+    }
+  }
+  return { code: line, comment: "" };
 }
 
 function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
