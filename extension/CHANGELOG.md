@@ -6,6 +6,10 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 ## [Unreleased]
 
+### Added
+
+* Better Log Outputs for easier use
+
 ### Fixed
 
 * Error where the first Enum Value got replaced
