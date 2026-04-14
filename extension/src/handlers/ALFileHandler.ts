@@ -941,44 +941,6 @@ function buildTranslatedPropertyLine(
   return result !== lineText ? result : undefined;
 }
 
-function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
-  if (otherComments.length === 0) {
-    return lineText;
-  }
-
-  const trailingText = otherComments.join(", ");
-  return lineText.replace(/\s*$/, "") + ` // ${trailingText}`;
-}
-
-/**
- * Splits a line into code and trailing `// comment`, respecting single-quoted strings.
- * Returns the code portion (trimmed) and the `// ...` comment (empty string if none).
- */
-function splitTrailingLineComment(line: string): { code: string; comment: string } {
-  let inQuote = false;
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === "'") {
-      if (inQuote && i + 1 < line.length && line[i + 1] === "'") {
-        i++; // skip escaped quote
-      } else {
-        inQuote = !inQuote;
-      }
-    } else if (!inQuote && line[i] === "/" && i + 1 < line.length && line[i + 1] === "/") {
-      return { code: line.substring(0, i).trimEnd(), comment: line.substring(i) };
-    }
-  }
-  return { code: line, comment: "" };
-}
-
-function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
-  if (otherComments.length === 0) {
-    return lineText;
-  }
-
-  const trailingText = otherComments.join(", ");
-  return lineText.replace(/\s*$/, "") + ` // ${trailingText}`;
-}
-
 /**
  * Splits a line into code and trailing `// comment`, respecting single-quoted strings.
  * Returns the code portion (trimmed) and the `// ...` comment (empty string if none).
