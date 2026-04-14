@@ -132,7 +132,32 @@ function findTargetLineInAlFile(lines: string[], subPath: { type: string; name: 
   let pathResolved = true;
 
   for (let depth = 0; depth < subPath.length; depth++) {
-    const containerLine = findAlElementLine(lines, subPath[depth], startLine, endLine);
+    let containerLine: number | undefined;
+    let searchFrom = startLine;
+
+    // Try successive occurrences of this element to handle overloads
+    // (e.g. methods with the same name but different signatures).
+    while (searchFrom < endLine) {
+      containerLine = findAlElementLine(lines, subPath[depth], searchFrom, endLine);
+      if (containerLine === undefined) {
+        break;
+      }
+      const scopeEnd = findAlScopeEnd(lines, containerLine);
+
+      // If there are deeper elements, verify the next one exists in this scope;
+      // otherwise try the next occurrence of the current element.
+      if (depth + 1 < subPath.length) {
+        if (findAlElementLine(lines, subPath[depth + 1], containerLine, scopeEnd) !== undefined) {
+          break; // Next element found inside this match's scope
+        }
+        searchFrom = scopeEnd;
+        containerLine = undefined;
+        continue;
+      }
+
+      break; // Last element in path — accept this match
+    }
+
     if (containerLine === undefined) {
       pathResolved = false;
       break;
@@ -181,6 +206,11 @@ function findAlElementLine(
 
   for (let i = startLine; i < endLine && i < lines.length; i++) {
     const trimmed = lines[i].trim();
+
+    // Skip comment-only lines so commented-out code is never matched
+    if (trimmed.startsWith("//")) {
+      continue;
+    }
 
     switch (type) {
       case "field":
@@ -417,11 +447,20 @@ function findBeginEndScopeEnd(lines: string[], startLine: number): number {
       continue;
     }
 
-    const beginMatches = trimmed.match(/\bbegin\b/g);
-    const endMatches = trimmed.match(/\bend\s*;/g);
+    // Strip string literals and comments so keywords inside them are not counted
+    const code = stripStringsAndComments(trimmed);
+
+    // Count scope openers: `begin` and `case ... of` (both close with `end`)
+    const beginMatches = code.match(/\bbegin\b/g);
+    const caseMatches = code.match(/\bcase\b.*\bof\b/g);
+    // Match `end` as a standalone keyword — it can appear without `;` (e.g. before `else`)
+    const endMatches = code.match(/\bend\b/g);
 
     if (beginMatches) {
       depth += beginMatches.length;
+    }
+    if (caseMatches) {
+      depth += caseMatches.length;
     }
     if (endMatches) {
       depth -= endMatches.length;
@@ -432,6 +471,50 @@ function findBeginEndScopeEnd(lines: string[], startLine: number): number {
   }
 
   return lines.length;
+}
+
+/**
+ * Strips single-quoted AL string literals, double-quoted AL identifiers,
+ * and `//` line comments from a line, leaving only code tokens so that
+ * keyword counting is accurate.
+ */
+function stripStringsAndComments(line: string): string {
+  let result = "";
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === "/" && i + 1 < line.length && line[i + 1] === "/") {
+      break; // rest is a line comment
+    }
+    if (line[i] === "'") {
+      i++; // skip opening quote
+      while (i < line.length) {
+        if (line[i] === "'" && i + 1 < line.length && line[i + 1] === "'") {
+          i += 2; // skip escaped quote
+        } else if (line[i] === "'") {
+          i++; // skip closing quote
+          break;
+        } else {
+          i++;
+        }
+      }
+    } else if (line[i] === '"') {
+      i++; // skip opening double-quote
+      while (i < line.length) {
+        if (line[i] === '"' && i + 1 < line.length && line[i + 1] === '"') {
+          i += 2; // skip escaped double-quote
+        } else if (line[i] === '"') {
+          i++; // skip closing double-quote
+          break;
+        } else {
+          i++;
+        }
+      }
+    } else {
+      result += line[i];
+      i++;
+    }
+  }
+  return result;
 }
 
 /**
