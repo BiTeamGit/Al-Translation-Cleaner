@@ -817,47 +817,6 @@ export async function applyTranslationsToAlFile(
         newLineText = buildTranslatedPropertyLine(fullLineText, tu, "replace", true, languageOrder);
         break;
 
-      case "ask": {
-        const addOnlyLine = buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder);
-        const replaceTransLine = buildTranslatedPropertyLine(fullLineText, tu, "replace", false, languageOrder);
-
-        const hasModifications = replaceTransLine !== undefined
-          && replaceTransLine !== fullLineText
-          && replaceTransLine !== addOnlyLine;
-
-        if (hasModifications) {
-          const choice = await vscode.window.showInformationMessage(
-            `Translations differ on line ${line + 1}. Replace existing translations?\nCurrent: ${fullLineText.trim()}\nProposed: ${replaceTransLine!.trim()}`,
-            "Replace", "Add missing only", "Skip", "Cancel all"
-          );
-          if (choice === "Cancel all") { return; }
-          if (choice === "Replace") {
-            newLineText = replaceTransLine;
-          } else if (choice === "Add missing only") {
-            newLineText = addOnlyLine;
-          }
-          // "Skip" or dismissed → newLineText stays undefined
-        } else {
-          // Only additions (or nothing), apply silently
-          newLineText = addOnlyLine;
-        }
-
-        // When Comment was on a separate line, always apply to merge into one line
-        if (newLineText === undefined && commentOnNextLine) {
-          newLineText = fullLineText;
-        }
-        if (newLineText !== undefined && newLineText !== lineText) {
-          if (trailingLineComment) {
-            newLineText = newLineText.replace(/\s*$/, "") + " " + trailingLineComment;
-          }
-          const askEdit = new vscode.WorkspaceEdit();
-          askEdit.replace(document.uri, replaceRange, newLineText);
-          await vscode.workspace.applyEdit(askEdit);
-          anyEditsApplied = true;
-        }
-        continue;
-      }
-
       case "add":
       default:
         newLineText = buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder);
@@ -1167,7 +1126,7 @@ function mergeLangEntries(existing: string[], incoming: string[], method: string
     return Array.from(result.values());
   }
 
-  // "replace" or "ask": replace existing languages, keep languages not in incoming
+  // "replace": replace existing languages, keep languages not in incoming
   const result = new Map(existingMap);
   for (const [lang, entry] of incomingMap) {
     result.set(lang, entry);
