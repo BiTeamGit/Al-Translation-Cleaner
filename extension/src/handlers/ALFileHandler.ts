@@ -581,27 +581,45 @@ function findInsertionPointForProperty(
  * Checks whether any element in the subPath is present in the file but commented out.
  * Walks the path normally as far as possible, then checks if the first unresolved
  * element exists on a commented-out line within the current scope.
+ * When a path element has multiple occurrences (overloads), all scopes are checked.
  */
 function isPathCommentedOut(lines: string[], subPath: { type: string; name: string }[]): boolean {
   if (subPath.length === 0) {
     return false;
   }
+  return isPathCommentedOutRecursive(lines, subPath, 0, 0, lines.length);
+}
 
-  let startLine = 0;
-  let endLine = lines.length;
-
-  for (const element of subPath) {
-    const found = findAlElementLine(lines, element, startLine, endLine);
-    if (found !== undefined) {
-      startLine = found;
-      endLine = findAlScopeEnd(lines, found);
-      continue;
-    }
-    // Element not found normally — check if it exists on a commented-out line
-    return findAlElementLine(lines, element, startLine, endLine, true) !== undefined;
+function isPathCommentedOutRecursive(
+  lines: string[],
+  subPath: { type: string; name: string }[],
+  depth: number,
+  startLine: number,
+  endLine: number
+): boolean {
+  if (depth >= subPath.length) {
+    return false;
   }
 
-  return false;
+  const element = subPath[depth];
+
+  // Try all normal occurrences of this element (overloads) within the scope
+  let searchFrom = startLine;
+  while (searchFrom < endLine) {
+    const found = findAlElementLine(lines, element, searchFrom, endLine);
+    if (found === undefined) {
+      break;
+    }
+    const scopeEnd = findAlScopeEnd(lines, found);
+    if (isPathCommentedOutRecursive(lines, subPath, depth + 1, found, scopeEnd)) {
+      return true;
+    }
+    searchFrom = scopeEnd;
+  }
+
+  // Element not found normally (or no normal occurrence led to a commented deeper element)
+  // — check if this element itself exists on a commented-out line
+  return findAlElementLine(lines, element, startLine, endLine, true) !== undefined;
 }
 
 /**
