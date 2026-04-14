@@ -6,9 +6,11 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 ## [Unreleased]
 
-### Added
+### Changed
 
 * Better Log Outputs for easier use
+* Translations that are commented out arent shown as errors
+* Double-Line Comments are merged to one Line
 
 ### Fixed
 
