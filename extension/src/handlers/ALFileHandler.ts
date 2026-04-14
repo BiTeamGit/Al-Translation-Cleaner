@@ -266,10 +266,10 @@ function findAlElementLine(
         break;
 
       case "action": {
-        // Match action/area/group/separator with the name (XLIFF uses "Action" type for all)
+        // Match action/fileuploadaction/area/group/separator with the name (XLIFF uses "Action" type for all)
         if (
           new RegExp(
-            `^(?:action|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `^(?:action|fileuploadaction|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
