@@ -11,6 +11,7 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 * Error where the first Enum Value got replaced
 * In PageExt there was Mapping Confusion between modify Action Captions and addAfter Field Captions
 * Double-Line Comments are now recognized
+* Fixed 1.0.1 Mapping Error that broke the Extension
 
 ## [1.0.3] - 2026-04-01
 
