@@ -11,6 +11,7 @@ export interface XliffFile {
 
 export interface TransUnit {
   lineNumber: number;
+  xlfFilePath?: string;
   source: string;
   translation?: string;
   elementPath: { type: string; name: string }[];
@@ -51,6 +52,9 @@ export function searchForTransUnitIdInXliff(alObjectHeader: ALObjectHeader, docu
     : findTargetLanguageInFile(lines);
 
   const transUnits = findTransUnitsForObject(alObjectHeader, lines);
+  for (const tu of transUnits) {
+    tu.xlfFilePath = document.uri.fsPath;
+  }
 
   return { filePath: document.uri.fsPath, targetLanguage, transUnits };
 }
@@ -509,6 +513,7 @@ export function parseXlfGroupedByObjectId(document: vscode.TextDocument): Groupe
     if (!transUnit) {
       continue;
     }
+    transUnit.xlfFilePath = document.uri.fsPath;
 
     let group = transUnitsByObjectId.get(firstSegment);
     if (!group) {
