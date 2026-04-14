@@ -200,6 +200,17 @@ function findAlElementLine(
   const type = element.type.toLowerCase();
   const escapedName = element.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+  // When the element name itself contains double quotes, AL quoted identifiers
+  // double each internal `"` (e.g. name `"Foo"` → AL syntax `"""Foo"""`). Build
+  // a regex fragment that matches the AL-escaped form.
+  let quotedNamePattern: string;
+  if (element.name.includes('"')) {
+    const alDoubledEscaped = element.name.replace(/"/g, '""').replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    quotedNamePattern = `"${alDoubledEscaped}"`;
+  } else {
+    quotedNamePattern = `"?${escapedName}"?`;
+  }
+
   // For "control" type, prefer leaf controls over containers when names collide
   // (e.g. area(content) vs field(Content; ...) on the same page).
   let controlContainerFallback: number | undefined;
@@ -216,7 +227,7 @@ function findAlElementLine(
       case "field":
         if (
           new RegExp(
-            `^field\\s*\\(\\s*\\d+\\s*;\\s*"?${escapedName}"?\\s*;`,
+            `^field\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*;`,
             "i"
           ).test(trimmed)
         ) {
@@ -228,7 +239,7 @@ function findAlElementLine(
         // Leaf controls: return immediately
         if (
           new RegExp(
-            `^(?:field|part|usercontrol|label)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^(?:field|part|usercontrol|label)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -238,7 +249,7 @@ function findAlElementLine(
         if (
           controlContainerFallback === undefined &&
           new RegExp(
-            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -250,7 +261,7 @@ function findAlElementLine(
         // Match action/area/group/separator with the name (XLIFF uses "Action" type for all)
         if (
           new RegExp(
-            `^(?:action|area|group|separator)\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            `^(?:action|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -276,7 +287,7 @@ function findAlElementLine(
       case "modify":
         if (
           new RegExp(
-            `^modify\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            `^modify\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -294,7 +305,7 @@ function findAlElementLine(
       case "movelast":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -306,7 +317,7 @@ function findAlElementLine(
       case "value":
         if (
           new RegExp(
-            `^value\\s*\\(\\s*\\d+\\s*;\\s*"?${escapedName}"?\\s*\\)`,
+            `^value\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -318,7 +329,7 @@ function findAlElementLine(
       case "dataitem":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -330,7 +341,7 @@ function findAlElementLine(
       case "renderinglayout":
         if (
           new RegExp(
-            `^layout\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            `^layout\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -347,7 +358,7 @@ function findAlElementLine(
       case "method":
         if (
           new RegExp(
-            `(?:procedure|trigger)\\s+"?${escapedName}"?\\s*\\(`,
+            `(?:procedure|trigger)\\s+${quotedNamePattern}\\s*\\(`,
             "i"
           ).test(trimmed)
         ) {
@@ -372,13 +383,13 @@ function findAlElementLine(
           i = findBeginEndScopeEnd(lines, i) - 1; // -1 because the for-loop will i++
           continue;
         }
-        if (new RegExp(`^"?${escapedName}"?\\s*:`, "i").test(trimmed)) {
+        if (new RegExp(`^${quotedNamePattern}\\s*:`, "i").test(trimmed)) {
           return i;
         }
         break;
 
       case "reportlabel":
-        if (new RegExp(`^"?${escapedName}"?\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`^${quotedNamePattern}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
