@@ -941,15 +941,6 @@ function buildTranslatedPropertyLine(
   return result !== lineText ? result : undefined;
 }
 
-function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
-  if (otherComments.length === 0) {
-    return lineText;
-  }
-
-  const trailingText = otherComments.join(", ");
-  return lineText.replace(/\s*$/, "") + ` // ${trailingText}`;
-}
-
 /**
  * Splits a line into code and trailing `// comment`, respecting single-quoted strings.
  * Returns the code portion (trimmed) and the `// ...` comment (empty string if none).
