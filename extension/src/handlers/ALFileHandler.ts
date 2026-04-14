@@ -195,7 +195,8 @@ function findAlElementLine(
   lines: string[],
   element: { type: string; name: string },
   startLine: number,
-  endLine: number
+  endLine: number,
+  commentedOnly: boolean = false
 ): number | undefined {
   const type = element.type.toLowerCase();
   const escapedName = element.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -216,10 +217,17 @@ function findAlElementLine(
   let controlContainerFallback: number | undefined;
 
   for (let i = startLine; i < endLine && i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    let trimmed = lines[i].trim();
 
-    // Skip comment-only lines so commented-out code is never matched
     if (trimmed.startsWith("//")) {
+      if (!commentedOnly) {
+        // Normal mode: skip comment-only lines so commented-out code is never matched
+        continue;
+      }
+      // Comment-only mode: strip comment prefix and match against the uncommented content
+      trimmed = trimmed.replace(/^\/\/\s*/, "");
+    } else if (commentedOnly) {
+      // Comment-only mode: skip non-commented lines
       continue;
     }
 
@@ -379,7 +387,8 @@ function findAlElementLine(
         // When the path has already narrowed us INTO a trigger (startLine === trigger line),
         // the loop begins at i === startLine so the guard `i > startLine` is false and we
         // do NOT skip — preserving correct resolution for trigger-local labels.
-        if (i > startLine && /^(?:(?:local\s+|internal\s+)?procedure|trigger)\b/i.test(trimmed)) {
+        // Skip trigger-skipping logic in commentedOnly mode (scope tracking on comments is unreliable).
+        if (!commentedOnly && i > startLine && /^(?:(?:local\s+|internal\s+)?procedure|trigger)\b/i.test(trimmed)) {
           i = findBeginEndScopeEnd(lines, i) - 1; // -1 because the for-loop will i++
           continue;
         }
@@ -569,6 +578,33 @@ function findInsertionPointForProperty(
 }
 
 /**
+ * Checks whether any element in the subPath is present in the file but commented out.
+ * Walks the path normally as far as possible, then checks if the first unresolved
+ * element exists on a commented-out line within the current scope.
+ */
+function isPathCommentedOut(lines: string[], subPath: { type: string; name: string }[]): boolean {
+  if (subPath.length === 0) {
+    return false;
+  }
+
+  let startLine = 0;
+  let endLine = lines.length;
+
+  for (const element of subPath) {
+    const found = findAlElementLine(lines, element, startLine, endLine);
+    if (found !== undefined) {
+      startLine = found;
+      endLine = findAlScopeEnd(lines, found);
+      continue;
+    }
+    // Element not found normally — check if it exists on a commented-out line
+    return findAlElementLine(lines, element, startLine, endLine, true) !== undefined;
+  }
+
+  return false;
+}
+
+/**
  * Resolves AL source locations for each trans-unit using the already-loaded file lines,
  * avoiding a full workspace scan.
  */
@@ -607,6 +643,12 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
         new vscode.Range(targetLine, indent, targetLine, lineText.length)
       );
     } else {
+      // Check if the element is commented out — if so, skip silently
+      // (no modification, no missing-translation log entry)
+      if (isPathCommentedOut(header.lines, subPath)) {
+        continue;
+      }
+
       // Property is missing — try to find the container so we can insert it
       if (tu.propertyName && tu.propertyName !== "Label" && subPath.length > 0 && subPath[subPath.length - 1].type === "Property") {
         const insertion = findInsertionPointForProperty(header.lines, subPath);
