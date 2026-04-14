@@ -325,6 +325,8 @@ function parseNoteSegment(segment: string): { type: string; name: string } | und
     { notePrefix: "RenderingLayout", normalizedType: "RenderingLayout" },
     { notePrefix: "Report Label", normalizedType: "ReportLabel" },
     { notePrefix: "ReportLabel", normalizedType: "ReportLabel" },
+    { notePrefix: "Report DataItem", normalizedType: "DataItem" },
+    { notePrefix: "ReportDataItem", normalizedType: "DataItem" },
     { notePrefix: "Named Type", normalizedType: "NamedType" },
     { notePrefix: "NamedType", normalizedType: "NamedType" },
     { notePrefix: "Enum Value", normalizedType: "EnumValue" },
