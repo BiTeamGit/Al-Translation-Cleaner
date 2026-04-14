@@ -20,6 +20,10 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 * 1.0.1 Mapping Error that broke the Extension
 * Names with double Quotes couldnt me Mapped
 
+### Removed
+
+* Option "Ask" in Translation Method, will be added in future updates
+
 ## [1.0.3] - 2026-04-01
 
 ### Fixed
