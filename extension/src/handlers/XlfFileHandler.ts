@@ -11,6 +11,7 @@ export interface XliffFile {
 
 export interface TransUnit {
   lineNumber: number;
+  xlfFilePath?: string;
   source: string;
   translation?: string;
   elementPath: { type: string; name: string }[];
@@ -51,6 +52,9 @@ export function searchForTransUnitIdInXliff(alObjectHeader: ALObjectHeader, docu
     : findTargetLanguageInFile(lines);
 
   const transUnits = findTransUnitsForObject(alObjectHeader, lines);
+  for (const tu of transUnits) {
+    tu.xlfFilePath = document.uri.fsPath;
+  }
 
   return { filePath: document.uri.fsPath, targetLanguage, transUnits };
 }
@@ -280,9 +284,22 @@ function parseXliffElementPath(transUnitId: string, xliffGeneratorNote: string):
 }
 
 const NOTE_TYPE_PREFIXES = [
-  "Rendering Layout", "Report Label", "Named Type", "Enum Value", "Data Item",
-  "Control AddIn", "Permission Set", "Table Extension", "Page Extension",
-  "Report Extension", "Enum Extension", "Xml Port",
+  "Rendering Layout", "RenderingLayout",
+  "Report Label", "ReportLabel",
+  "Report DataItem", "ReportDataItem",
+  "Named Type", "NamedType",
+  "Enum Value", "EnumValue",
+  "Data Item",
+  "Control AddIn", "ControlAddIn",
+  "Permission Set", "PermissionSet",
+  "Table Extension", "TableExtension",
+  "Page Extension", "PageExtension",
+  "Report Extension", "ReportExtension",
+  "Enum Extension", "EnumExtension",
+  "Xml Port", "XmlPort",
+  "AddAfter", "AddBefore", "AddFirst", "AddLast",
+  "MoveAfter", "MoveBefore", "MoveFirst", "MoveLast",
+  "Change", "Modify", "Move", "Add",
   "Method", "Property", "Rendering", "Layout", "Action", "Control", "Field",
   "Column", "DataItem", "Value", "Report", "Page", "Table", "Codeunit",
   "Query", "Enum", "Profile",
@@ -309,17 +326,43 @@ function parseNoteSegment(segment: string): { type: string; name: string } | und
 
   const typePrefixes: Array<{ notePrefix: string; normalizedType: string }> = [
     { notePrefix: "Rendering Layout", normalizedType: "RenderingLayout" },
+    { notePrefix: "RenderingLayout", normalizedType: "RenderingLayout" },
     { notePrefix: "Report Label", normalizedType: "ReportLabel" },
+    { notePrefix: "ReportLabel", normalizedType: "ReportLabel" },
+    { notePrefix: "Report DataItem", normalizedType: "DataItem" },
+    { notePrefix: "ReportDataItem", normalizedType: "DataItem" },
     { notePrefix: "Named Type", normalizedType: "NamedType" },
+    { notePrefix: "NamedType", normalizedType: "NamedType" },
     { notePrefix: "Enum Value", normalizedType: "EnumValue" },
+    { notePrefix: "EnumValue", normalizedType: "EnumValue" },
     { notePrefix: "Data Item", normalizedType: "DataItem" },
+    { notePrefix: "DataItem", normalizedType: "DataItem" },
     { notePrefix: "Control AddIn", normalizedType: "ControlAddIn" },
+    { notePrefix: "ControlAddIn", normalizedType: "ControlAddIn" },
     { notePrefix: "Permission Set", normalizedType: "PermissionSet" },
+    { notePrefix: "PermissionSet", normalizedType: "PermissionSet" },
     { notePrefix: "Table Extension", normalizedType: "TableExtension" },
+    { notePrefix: "TableExtension", normalizedType: "TableExtension" },
     { notePrefix: "Page Extension", normalizedType: "PageExtension" },
+    { notePrefix: "PageExtension", normalizedType: "PageExtension" },
     { notePrefix: "Report Extension", normalizedType: "ReportExtension" },
+    { notePrefix: "ReportExtension", normalizedType: "ReportExtension" },
     { notePrefix: "Enum Extension", normalizedType: "EnumExtension" },
+    { notePrefix: "EnumExtension", normalizedType: "EnumExtension" },
     { notePrefix: "Xml Port", normalizedType: "XmlPort" },
+    { notePrefix: "XmlPort", normalizedType: "XmlPort" },
+    { notePrefix: "AddAfter", normalizedType: "AddAfter" },
+    { notePrefix: "AddBefore", normalizedType: "AddBefore" },
+    { notePrefix: "AddFirst", normalizedType: "AddFirst" },
+    { notePrefix: "AddLast", normalizedType: "AddLast" },
+    { notePrefix: "MoveAfter", normalizedType: "MoveAfter" },
+    { notePrefix: "MoveBefore", normalizedType: "MoveBefore" },
+    { notePrefix: "MoveFirst", normalizedType: "MoveFirst" },
+    { notePrefix: "MoveLast", normalizedType: "MoveLast" },
+    { notePrefix: "Change", normalizedType: "Modify" },
+    { notePrefix: "Modify", normalizedType: "Modify" },
+    { notePrefix: "Move", normalizedType: "Move" },
+    { notePrefix: "Add", normalizedType: "Add" },
     { notePrefix: "Method", normalizedType: "Method" },
     { notePrefix: "Property", normalizedType: "Property" },
     { notePrefix: "Rendering", normalizedType: "Rendering" },
@@ -328,7 +371,6 @@ function parseNoteSegment(segment: string): { type: string; name: string } | und
     { notePrefix: "Control", normalizedType: "Control" },
     { notePrefix: "Field", normalizedType: "Field" },
     { notePrefix: "Column", normalizedType: "Column" },
-    { notePrefix: "DataItem", normalizedType: "DataItem" },
     { notePrefix: "Value", normalizedType: "Value" },
     { notePrefix: "Report", normalizedType: "Report" },
     { notePrefix: "Page", normalizedType: "Page" },
@@ -471,6 +513,7 @@ export function parseXlfGroupedByObjectId(document: vscode.TextDocument): Groupe
     if (!transUnit) {
       continue;
     }
+    transUnit.xlfFilePath = document.uri.fsPath;
 
     let group = transUnitsByObjectId.get(firstSegment);
     if (!group) {

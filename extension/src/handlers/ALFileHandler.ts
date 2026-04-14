@@ -132,7 +132,32 @@ function findTargetLineInAlFile(lines: string[], subPath: { type: string; name: 
   let pathResolved = true;
 
   for (let depth = 0; depth < subPath.length; depth++) {
-    const containerLine = findAlElementLine(lines, subPath[depth], startLine, endLine);
+    let containerLine: number | undefined;
+    let searchFrom = startLine;
+
+    // Try successive occurrences of this element to handle overloads
+    // (e.g. methods with the same name but different signatures).
+    while (searchFrom < endLine) {
+      containerLine = findAlElementLine(lines, subPath[depth], searchFrom, endLine);
+      if (containerLine === undefined) {
+        break;
+      }
+      const scopeEnd = findAlScopeEnd(lines, containerLine);
+
+      // If there are deeper elements, verify the next one exists in this scope;
+      // otherwise try the next occurrence of the current element.
+      if (depth + 1 < subPath.length) {
+        if (findAlElementLine(lines, subPath[depth + 1], containerLine, scopeEnd) !== undefined) {
+          break; // Next element found inside this match's scope
+        }
+        searchFrom = scopeEnd;
+        containerLine = undefined;
+        continue;
+      }
+
+      break; // Last element in path — accept this match
+    }
+
     if (containerLine === undefined) {
       pathResolved = false;
       break;
@@ -170,23 +195,47 @@ function findAlElementLine(
   lines: string[],
   element: { type: string; name: string },
   startLine: number,
-  endLine: number
+  endLine: number,
+  commentedOnly: boolean = false
 ): number | undefined {
   const type = element.type.toLowerCase();
   const escapedName = element.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // When the element name itself contains double quotes, AL quoted identifiers
+  // double each internal `"` (e.g. name `"Foo"` → AL syntax `"""Foo"""`). Build
+  // a regex fragment that matches the AL-escaped form.
+  let quotedNamePattern: string;
+  if (element.name.includes('"')) {
+    const alDoubledEscaped = element.name.replace(/"/g, '""').replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    quotedNamePattern = `"${alDoubledEscaped}"`;
+  } else {
+    quotedNamePattern = `"?${escapedName}"?`;
+  }
 
   // For "control" type, prefer leaf controls over containers when names collide
   // (e.g. area(content) vs field(Content; ...) on the same page).
   let controlContainerFallback: number | undefined;
 
   for (let i = startLine; i < endLine && i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    let trimmed = lines[i].trim();
+
+    if (trimmed.startsWith("//")) {
+      if (!commentedOnly) {
+        // Normal mode: skip comment-only lines so commented-out code is never matched
+        continue;
+      }
+      // Comment-only mode: strip comment prefix and match against the uncommented content
+      trimmed = trimmed.replace(/^\/\/\s*/, "");
+    } else if (commentedOnly) {
+      // Comment-only mode: skip non-commented lines
+      continue;
+    }
 
     switch (type) {
       case "field":
         if (
           new RegExp(
-            `^field\\s*\\(\\s*\\d+\\s*;\\s*"?${escapedName}"?\\s*;`,
+            `^field\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*;`,
             "i"
           ).test(trimmed)
         ) {
@@ -198,7 +247,7 @@ function findAlElementLine(
         // Leaf controls: return immediately
         if (
           new RegExp(
-            `^(?:field|part|usercontrol|label)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^(?:field|part|usercontrol|label)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -208,7 +257,7 @@ function findAlElementLine(
         if (
           controlContainerFallback === undefined &&
           new RegExp(
-            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -217,10 +266,10 @@ function findAlElementLine(
         break;
 
       case "action": {
-        // Match action/area/group/separator with the name (XLIFF uses "Action" type for all)
+        // Match action/fileuploadaction/area/group/separator with the name (XLIFF uses "Action" type for all)
         if (
           new RegExp(
-            `^(?:action|area|group|separator)\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            `^(?:action|fileuploadaction|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -243,11 +292,40 @@ function findAlElementLine(
         break;
       }
 
+      case "modify":
+        if (
+          new RegExp(
+            `^modify\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            "i"
+          ).test(trimmed)
+        ) {
+          return i;
+        }
+        break;
+
+      case "addafter":
+      case "addbefore":
+      case "addfirst":
+      case "addlast":
+      case "moveafter":
+      case "movebefore":
+      case "movefirst":
+      case "movelast":
+        if (
+          new RegExp(
+            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            "i"
+          ).test(trimmed)
+        ) {
+          return i;
+        }
+        break;
+
       case "enumvalue":
       case "value":
         if (
           new RegExp(
-            `^value\\s*\\(\\s*\\d+\\s*;\\s*"?${escapedName}"?\\s*\\)`,
+            `^value\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -259,7 +337,7 @@ function findAlElementLine(
       case "dataitem":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*"?${escapedName}"?\\s*[;)]`,
+            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -271,7 +349,7 @@ function findAlElementLine(
       case "renderinglayout":
         if (
           new RegExp(
-            `^layout\\s*\\(\\s*"?${escapedName}"?\\s*\\)`,
+            `^layout\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -288,7 +366,7 @@ function findAlElementLine(
       case "method":
         if (
           new RegExp(
-            `(?:procedure|trigger)\\s+"?${escapedName}"?\\s*\\(`,
+            `(?:procedure|trigger)\\s+${quotedNamePattern}\\s*\\(`,
             "i"
           ).test(trimmed)
         ) {
@@ -309,17 +387,18 @@ function findAlElementLine(
         // When the path has already narrowed us INTO a trigger (startLine === trigger line),
         // the loop begins at i === startLine so the guard `i > startLine` is false and we
         // do NOT skip — preserving correct resolution for trigger-local labels.
-        if (i > startLine && /^(?:(?:local\s+|internal\s+)?procedure|trigger)\b/i.test(trimmed)) {
+        // Skip trigger-skipping logic in commentedOnly mode (scope tracking on comments is unreliable).
+        if (!commentedOnly && i > startLine && /^(?:(?:local\s+|internal\s+)?procedure|trigger)\b/i.test(trimmed)) {
           i = findBeginEndScopeEnd(lines, i) - 1; // -1 because the for-loop will i++
           continue;
         }
-        if (new RegExp(`^"?${escapedName}"?\\s*:`, "i").test(trimmed)) {
+        if (new RegExp(`^${quotedNamePattern}\\s*:`, "i").test(trimmed)) {
           return i;
         }
         break;
 
       case "reportlabel":
-        if (new RegExp(`^"?${escapedName}"?\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`^${quotedNamePattern}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -388,11 +467,20 @@ function findBeginEndScopeEnd(lines: string[], startLine: number): number {
       continue;
     }
 
-    const beginMatches = trimmed.match(/\bbegin\b/g);
-    const endMatches = trimmed.match(/\bend\s*;/g);
+    // Strip string literals and comments so keywords inside them are not counted
+    const code = stripStringsAndComments(trimmed);
+
+    // Count scope openers: `begin` and `case ... of` (both close with `end`)
+    const beginMatches = code.match(/\bbegin\b/g);
+    const caseMatches = code.match(/\bcase\b.*\bof\b/g);
+    // Match `end` as a standalone keyword — it can appear without `;` (e.g. before `else`)
+    const endMatches = code.match(/\bend\b/g);
 
     if (beginMatches) {
       depth += beginMatches.length;
+    }
+    if (caseMatches) {
+      depth += caseMatches.length;
     }
     if (endMatches) {
       depth -= endMatches.length;
@@ -403,6 +491,50 @@ function findBeginEndScopeEnd(lines: string[], startLine: number): number {
   }
 
   return lines.length;
+}
+
+/**
+ * Strips single-quoted AL string literals, double-quoted AL identifiers,
+ * and `//` line comments from a line, leaving only code tokens so that
+ * keyword counting is accurate.
+ */
+function stripStringsAndComments(line: string): string {
+  let result = "";
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === "/" && i + 1 < line.length && line[i + 1] === "/") {
+      break; // rest is a line comment
+    }
+    if (line[i] === "'") {
+      i++; // skip opening quote
+      while (i < line.length) {
+        if (line[i] === "'" && i + 1 < line.length && line[i + 1] === "'") {
+          i += 2; // skip escaped quote
+        } else if (line[i] === "'") {
+          i++; // skip closing quote
+          break;
+        } else {
+          i++;
+        }
+      }
+    } else if (line[i] === '"') {
+      i++; // skip opening double-quote
+      while (i < line.length) {
+        if (line[i] === '"' && i + 1 < line.length && line[i + 1] === '"') {
+          i += 2; // skip escaped double-quote
+        } else if (line[i] === '"') {
+          i++; // skip closing double-quote
+          break;
+        } else {
+          i++;
+        }
+      }
+    } else {
+      result += line[i];
+      i++;
+    }
+  }
+  return result;
 }
 
 /**
@@ -446,6 +578,51 @@ function findInsertionPointForProperty(
 }
 
 /**
+ * Checks whether any element in the subPath is present in the file but commented out.
+ * Walks the path normally as far as possible, then checks if the first unresolved
+ * element exists on a commented-out line within the current scope.
+ * When a path element has multiple occurrences (overloads), all scopes are checked.
+ */
+function isPathCommentedOut(lines: string[], subPath: { type: string; name: string }[]): boolean {
+  if (subPath.length === 0) {
+    return false;
+  }
+  return isPathCommentedOutRecursive(lines, subPath, 0, 0, lines.length);
+}
+
+function isPathCommentedOutRecursive(
+  lines: string[],
+  subPath: { type: string; name: string }[],
+  depth: number,
+  startLine: number,
+  endLine: number
+): boolean {
+  if (depth >= subPath.length) {
+    return false;
+  }
+
+  const element = subPath[depth];
+
+  // Try all normal occurrences of this element (overloads) within the scope
+  let searchFrom = startLine;
+  while (searchFrom < endLine) {
+    const found = findAlElementLine(lines, element, searchFrom, endLine);
+    if (found === undefined) {
+      break;
+    }
+    const scopeEnd = findAlScopeEnd(lines, found);
+    if (isPathCommentedOutRecursive(lines, subPath, depth + 1, found, scopeEnd)) {
+      return true;
+    }
+    searchFrom = scopeEnd;
+  }
+
+  // Element not found normally (or no normal occurrence led to a commented deeper element)
+  // — check if this element itself exists on a commented-out line
+  return findAlElementLine(lines, element, startLine, endLine, true) !== undefined;
+}
+
+/**
  * Resolves AL source locations for each trans-unit using the already-loaded file lines,
  * avoiding a full workspace scan.
  */
@@ -484,18 +661,22 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
         new vscode.Range(targetLine, indent, targetLine, lineText.length)
       );
     } else {
+      // Check if the element is commented out — if so, skip silently
+      // (no modification, no missing-translation log entry)
+      if (isPathCommentedOut(header.lines, subPath)) {
+        continue;
+      }
+
       // Property is missing — try to find the container so we can insert it
       if (tu.propertyName && tu.propertyName !== "Label" && subPath.length > 0 && subPath[subPath.length - 1].type === "Property") {
         const insertion = findInsertionPointForProperty(header.lines, subPath);
         if (insertion) {
           tu.missingProperty = { ...insertion, propertyName: tu.propertyName };
         } else {
-          const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
-          logger.log(`Could not find AL container for missing property "${tu.propertyName}". Path: ${path}, Source: "${tu.source}", File: ${header.fileUri.fsPath}`);
+          logger.log(`Text: "${tu.source}", XLF: ${tu.xlfFilePath ?? "unknown"}:${tu.lineNumber + 1} , AL: ${header.fileUri.fsPath}`);
         }
       } else {
-        const path = tu.elementPath.map(e => `${e.type} ${e.name}`).join(" - ");
-        logger.log(`Could not find AL source for trans-unit. Path: ${path}, Property: ${tu.propertyName ?? "(none)"}, Source: "${tu.source}", File: ${header.fileUri.fsPath}, XLF line: ${tu.lineNumber}`);
+        logger.log(`Text: "${tu.source}", XLF: ${tu.xlfFilePath ?? "unknown"}:${tu.lineNumber + 1} , AL: ${header.fileUri.fsPath}`);
       }
     }
   }
@@ -605,58 +786,56 @@ export async function applyTranslationsToAlFile(
     }
 
     const lineText = document.lineAt(line).text;
+
+    // Detect Comment on the next line (multi-line property) and merge into one line
+    let fullLineText = lineText;
+    let commentOnNextLine = false;
+    let trailingLineComment = "";
+    if (line + 1 < document.lineCount) {
+      const nextLineText = document.lineAt(line + 1).text;
+      if (/^\s*Comment\s*=\s*'/i.test(nextLineText)) {
+        // Strip any trailing // comment from the first line before merging
+        let firstLine = lineText.trimEnd();
+        const splitResult = splitTrailingLineComment(firstLine);
+        if (splitResult.comment) {
+          firstLine = splitResult.code;
+          trailingLineComment = splitResult.comment;
+        }
+        fullLineText = firstLine + ' ' + nextLineText.trim();
+        commentOnNextLine = true;
+      }
+    }
+
+    const replaceRange = commentOnNextLine
+      ? new vscode.Range(document.lineAt(line).range.start, document.lineAt(line + 1).range.end)
+      : document.lineAt(line).range;
+
     let newLineText: string | undefined;
 
     switch (translationMethod) {
       case "replace":
-        newLineText = buildTranslatedPropertyLine(lineText, tu, "replace", true, languageOrder);
+        newLineText = buildTranslatedPropertyLine(fullLineText, tu, "replace", true, languageOrder);
         break;
-
-      case "ask": {
-        const addOnlyLine = buildTranslatedPropertyLine(lineText, tu, "add", false, languageOrder);
-        const replaceTransLine = buildTranslatedPropertyLine(lineText, tu, "replace", false, languageOrder);
-
-        const hasModifications = replaceTransLine !== undefined
-          && replaceTransLine !== lineText
-          && replaceTransLine !== addOnlyLine;
-
-        if (hasModifications) {
-          const choice = await vscode.window.showInformationMessage(
-            `Translations differ on line ${line + 1}. Replace existing translations?\nCurrent: ${lineText.trim()}\nProposed: ${replaceTransLine!.trim()}`,
-            "Replace", "Add missing only", "Skip", "Cancel all"
-          );
-          if (choice === "Cancel all") { return; }
-          if (choice === "Replace") {
-            newLineText = replaceTransLine;
-          } else if (choice === "Add missing only") {
-            newLineText = addOnlyLine;
-          }
-          // "Skip" or dismissed → newLineText stays undefined
-        } else {
-          // Only additions (or nothing), apply silently
-          newLineText = addOnlyLine;
-        }
-
-        if (newLineText !== undefined && newLineText !== lineText) {
-          const askEdit = new vscode.WorkspaceEdit();
-          askEdit.replace(document.uri, document.lineAt(line).range, newLineText);
-          await vscode.workspace.applyEdit(askEdit);
-          anyEditsApplied = true;
-        }
-        continue;
-      }
 
       case "add":
       default:
-        newLineText = buildTranslatedPropertyLine(lineText, tu, "add", false, languageOrder);
+        newLineText = buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder);
         break;
     }
 
+    // When Comment was on a separate line, always apply to merge into one line
+    if (newLineText === undefined && commentOnNextLine) {
+      newLineText = fullLineText;
+    }
     if (newLineText === undefined || newLineText === lineText) {
       continue;
     }
 
-    workspaceEdit.replace(document.uri, document.lineAt(line).range, newLineText);
+    if (trailingLineComment) {
+      newLineText = newLineText.replace(/\s*$/, "") + " " + trailingLineComment;
+    }
+
+    workspaceEdit.replace(document.uri, replaceRange, newLineText);
     editCount++;
   }
 
@@ -760,6 +939,35 @@ function buildTranslatedPropertyLine(
   const commentValue = newLangEntries.join(",");
   result = result.substring(0, semicolonIndex) + `, Comment = '${commentValue}'` + result.substring(semicolonIndex);
   return result !== lineText ? result : undefined;
+}
+
+function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
+  if (otherComments.length === 0) {
+    return lineText;
+  }
+
+  const trailingText = otherComments.join(", ");
+  return lineText.replace(/\s*$/, "") + ` // ${trailingText}`;
+}
+
+/**
+ * Splits a line into code and trailing `// comment`, respecting single-quoted strings.
+ * Returns the code portion (trimmed) and the `// ...` comment (empty string if none).
+ */
+function splitTrailingLineComment(line: string): { code: string; comment: string } {
+  let inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "'") {
+      if (inQuote && i + 1 < line.length && line[i + 1] === "'") {
+        i++; // skip escaped quote
+      } else {
+        inQuote = !inQuote;
+      }
+    } else if (!inQuote && line[i] === "/" && i + 1 < line.length && line[i + 1] === "/") {
+      return { code: line.substring(0, i).trimEnd(), comment: line.substring(i) };
+    }
+  }
+  return { code: line, comment: "" };
 }
 
 function appendOtherCommentsAsLineComment(lineText: string, otherComments: string[]): string {
@@ -927,7 +1135,7 @@ function mergeLangEntries(existing: string[], incoming: string[], method: string
     return Array.from(result.values());
   }
 
-  // "replace" or "ask": replace existing languages, keep languages not in incoming
+  // "replace": replace existing languages, keep languages not in incoming
   const result = new Map(existingMap);
   for (const [lang, entry] of incomingMap) {
     result.set(lang, entry);

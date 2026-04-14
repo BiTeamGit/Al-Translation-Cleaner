@@ -1,4 +1,4 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/biteam.al-translation-cleaner) ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/biteam.al-translation-cleaner?color=green)
+[![License: MIT](https://img.shields.io/github/license/BiTeamGit/Al-Translation-Cleaner)](https://opensource.org/licenses/MIT) ![Visual Studio Marketplace Version](https://img.shields.io/github/v/release/BiTeamGit/Al-Translation-Cleaner)
 
 # Introduction
 
@@ -20,7 +20,7 @@ Finds all translations in all the XLIFF files and writes all missing translation
 
 ## Extension Settings
 
-- `ATC.translationMethod` - Specifies the Method of XLIFF editing used. Replace Mode completely overwrites all translations with the translations given in the XLIFF files. Add Mode only adds missing translation and does not modify existing translations. Ask Mode has the same functionality as Add Mode, but if there is a wrong translation the User is asked how he wants to respond("Replace" replaces the wrong translations, "Add missing only" only adds missing translations, "Skip completely skips the current line, "Cancel all" stops the whole process)
+- `ATC.translationMethod` - Specifies the Method of XLIFF editing used. Replace Mode completely overwrites all translations with the translations given in the XLIFF files. Add Mode only adds missing translation and does not modify existing translations.
 - `ATC.languageMapping` - Maps target language codes (from XLIFF) to AL comment language codes. Key: target language (e.g., 'de-DE'), Value: AL comment code (e.g., 'DEU')
 
 ## Contribute
