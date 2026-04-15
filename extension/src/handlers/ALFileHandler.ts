@@ -10,6 +10,11 @@ export interface ALObjectHeader {
   lines: string[];
 }
 
+export interface NotFoundTransUnit {
+  transUnit: TransUnit;
+  alFileUri: vscode.Uri;
+}
+
 /**
  * Gets the header information of an AL object from the given file.
  * @param lines The lines of the AL file.
@@ -626,7 +631,8 @@ function isPathCommentedOutRecursive(
  * Resolves AL source locations for each trans-unit using the already-loaded file lines,
  * avoiding a full workspace scan.
  */
-export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObjectHeader): void {
+export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObjectHeader): NotFoundTransUnit[] {
+  const notFound: NotFoundTransUnit[] = [];
   for (const tu of transUnits) {
     if (tu.elementPath.length === 0) {
       continue;
@@ -673,13 +679,14 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
         if (insertion) {
           tu.missingProperty = { ...insertion, propertyName: tu.propertyName };
         } else {
-          logger.log(`Text: "${tu.source}", XLF: ${tu.xlfFilePath ?? "unknown"}:${tu.lineNumber + 1} , AL: ${header.fileUri.fsPath}`);
+          notFound.push({ transUnit: tu, alFileUri: header.fileUri });
         }
       } else {
-        logger.log(`Text: "${tu.source}", XLF: ${tu.xlfFilePath ?? "unknown"}:${tu.lineNumber + 1} , AL: ${header.fileUri.fsPath}`);
+        notFound.push({ transUnit: tu, alFileUri: header.fileUri });
       }
     }
   }
+  return notFound;
 }
 
 /**

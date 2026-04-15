@@ -10,8 +10,9 @@ import path from "path";
 
 export class Settings {
     public workspaceFolderPath: string;
-    public translationMethod = "replace";
+    public translationMethod: "replace" | "add" = "replace";
     public languageMapping: { [targetLanguage: string]: string } = {};
+    public whenTranslationNotFound: "log" | "ask" | "delete" = "ask";
 
     constructor(workspaceFolderPath: string) {
         this.workspaceFolderPath = workspaceFolderPath;

@@ -82,6 +82,16 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "ATC.whenTranslationNotFound": {
+          "type": "string",
+          "description": "Specifies the action to take when a translation is not found. Options are: log the missing translation, ask the user, or delete the missing translation from the xliff file.",
+          "enum": [
+            "log",
+            "ask",
+            "delete"
+          ],
+          "default": "ask"
         }
       }
     }
