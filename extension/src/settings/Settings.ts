@@ -12,7 +12,7 @@ export class Settings {
     public workspaceFolderPath: string;
     public translationMethod: "replace" | "add" = "replace";
     public languageMapping: { [targetLanguage: string]: string } = {};
-    public WhenTranslationNotFound: "log" | "ask" | "delete" = "ask";
+    public whenTranslationNotFound: "log" | "ask" | "delete" = "ask";
 
     constructor(workspaceFolderPath: string) {
         this.workspaceFolderPath = workspaceFolderPath;
