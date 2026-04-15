@@ -217,6 +217,11 @@ function findAlElementLine(
     quotedNamePattern = `"?${escapedName}"?`;
   }
 
+  // In commentedOnly mode, do not anchor patterns at line start — comments may
+  // contain non-code annotations (e.g. ticket refs like #12345) between "//" and
+  // the actual code, so the element keyword/name may not be at position 0.
+  const lineStartAnchor = commentedOnly ? "" : "^";
+
   // For "control" type, prefer leaf controls over containers when names collide
   // (e.g. area(content) vs field(Content; ...) on the same page).
   let controlContainerFallback: number | undefined;
@@ -240,7 +245,7 @@ function findAlElementLine(
       case "field":
         if (
           new RegExp(
-            `^field\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*;`,
+            `${lineStartAnchor}field\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*;`,
             "i"
           ).test(trimmed)
         ) {
@@ -252,7 +257,7 @@ function findAlElementLine(
         // Leaf controls: return immediately
         if (
           new RegExp(
-            `^(?:field|part|usercontrol|label)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
+            `${lineStartAnchor}(?:field|part|usercontrol|label)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -262,7 +267,7 @@ function findAlElementLine(
         if (
           controlContainerFallback === undefined &&
           new RegExp(
-            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
+            `${lineStartAnchor}(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -274,7 +279,7 @@ function findAlElementLine(
         // Match action/fileuploadaction/area/group/separator with the name (XLIFF uses "Action" type for all)
         if (
           new RegExp(
-            `^(?:action|fileuploadaction|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}(?:action|fileuploadaction|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -287,7 +292,7 @@ function findAlElementLine(
           const innerName = actionContainerMatch[2].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           if (
             new RegExp(
-              `^${keyword}\\s*\\(\\s*"?${innerName}"?\\s*\\)`,
+              `${lineStartAnchor}${keyword}\\s*\\(\\s*"?${innerName}"?\\s*\\)`,
               "i"
             ).test(trimmed)
           ) {
@@ -300,7 +305,7 @@ function findAlElementLine(
       case "modify":
         if (
           new RegExp(
-            `^modify\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}modify\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -318,7 +323,7 @@ function findAlElementLine(
       case "movelast":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}${type}\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -330,7 +335,7 @@ function findAlElementLine(
       case "value":
         if (
           new RegExp(
-            `^value\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}value\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -342,7 +347,7 @@ function findAlElementLine(
       case "dataitem":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
+            `${lineStartAnchor}${type}\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -354,7 +359,7 @@ function findAlElementLine(
       case "renderinglayout":
         if (
           new RegExp(
-            `^layout\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}layout\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -363,7 +368,7 @@ function findAlElementLine(
         break;
 
       case "rendering":
-        if (/^rendering\b/i.test(trimmed)) {
+        if (new RegExp(`${lineStartAnchor}rendering\\b`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -380,7 +385,7 @@ function findAlElementLine(
         break;
 
       case "property":
-        if (new RegExp(`(?:^|[{,]\\s*)${escapedName}\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`(?:${lineStartAnchor}|[{,]\\s*)${escapedName}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -397,13 +402,13 @@ function findAlElementLine(
           i = findBeginEndScopeEnd(lines, i) - 1; // -1 because the for-loop will i++
           continue;
         }
-        if (new RegExp(`^${quotedNamePattern}\\s*:`, "i").test(trimmed)) {
+        if (new RegExp(`${lineStartAnchor}${quotedNamePattern}\\s*:`, "i").test(trimmed)) {
           return i;
         }
         break;
 
       case "reportlabel":
-        if (new RegExp(`^${quotedNamePattern}\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`${lineStartAnchor}${quotedNamePattern}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
