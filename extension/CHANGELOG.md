@@ -4,6 +4,12 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [Unreleased]
+
+### Added
+
+* Setting: ATC.whenTranslationNotFound
+
 ## [1.0.4] - 2026-04-14
 
 ### Changed
