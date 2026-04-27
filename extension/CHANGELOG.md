@@ -10,6 +10,11 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 * Setting: ATC.whenTranslationNotFound
 
+### Fixed
+
+* Comment Parsing Fixed - Translations that are commented out no longer show up as errors
+* Mapping of Object Names with Spaces at the end works
+
 ## [1.0.4] - 2026-04-14
 
 ### Changed
