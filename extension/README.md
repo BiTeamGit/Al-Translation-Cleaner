@@ -22,6 +22,8 @@ Finds all translations in all the XLIFF files and writes all missing translation
 
 - `ATC.translationMethod` - Specifies the method of XLIFF editing used. Replace mode completely overwrites all translations with the translations from XLIFF files. Add mode only adds missing translations and does not modify existing translations. Ask mode adds missing translations and asks how to handle conflicting existing translations.
 - `ATC.languageMapping` - Maps target language codes (from XLIFF) to AL comment language codes. Key: target language (e.g., 'de-DE'), Value: AL comment code (e.g., 'DEU')
+
+  ![LanguageMappingExample](assets/LanguageMappingExample.png)
 - `ATC.WhenTranslationNotFound` - Specifies the action to take when a translation is not found. Options are: log the missing translation, ask the user, or delete the missing translation from the xliff file.
 
 ## Contribute
