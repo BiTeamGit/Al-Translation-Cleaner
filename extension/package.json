@@ -39,6 +39,10 @@
         "title": "ATC: Write Translations to Comments in current AL File"
       },
       {
+        "command": "atc.writeTranslationsToFolder",
+        "title": "ATC: Write Translations to Comments in AL Files in Folder"
+      },
+      {
         "command": "atc.writeTranslationsFromXliffToALFile",
         "title": "ATC: Write Translations in current Xliff File to AL File Comments"
       },
@@ -56,9 +60,6 @@
         {
           "command": "atc.writeTranslationsFromXliffToALFile",
           "when": "resourceExtname == .xlf"
-        },
-        {
-          "command": "atc.writeTranslationsFromAllXliffToALFiles"
         }
       ]
     },

@@ -365,6 +365,160 @@ async function handleNotFoundTransUnits(notFoundItems: NotFoundTransUnit[], when
     }
 }
 
+/**
+ * Shows a folder selection dialog, finds all AL files in that folder,
+ * and applies translations from XLF files in the workspace to only those AL files.
+ */
+export async function writeTranslationsToFolder() {
+    logger.log("Executing writeTranslationsToFolder command...");
+    const status = vscode.window.setStatusBarMessage("ATC: Select folder with AL files to translate...");
+
+    // Show folder picker dialog
+    const selectedFolders = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        title: "Select folder containing AL files to translate",
+        openLabel: "Select"
+    });
+
+    if (!selectedFolders || selectedFolders.length === 0) {
+        logger.log("User cancelled folder selection.");
+        status.dispose();
+        return;
+    }
+
+    const selectedFolder = selectedFolders[0];
+    const folderPath = selectedFolder.fsPath;
+    logger.log(`Selected folder: ${folderPath}`);
+
+    // Check if the selected folder is within the workspace
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        logger.log("No workspace folders found.");
+        vscode.window.showErrorMessage("No workspace folders found.");
+        status.dispose();
+        return;
+    }
+
+    const isInWorkspace = workspaceFolders.some(wsFolder => {
+        const normalizedSelected = path.normalize(folderPath);
+        const normalizedWorkspace = path.normalize(wsFolder.uri.fsPath);
+        return normalizedSelected === normalizedWorkspace || normalizedSelected.startsWith(normalizedWorkspace + path.sep);
+    });
+
+    if (!isInWorkspace) {
+        logger.log(`Selected folder is not within the workspace.`);
+        vscode.window.showErrorMessage("The selected folder must be within the workspace to apply translations.");
+        status.dispose();
+        return;
+    }
+
+    const settings = getSettings();
+
+    const allNotFound: NotFoundTransUnit[] = [];
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Processing AL files in selected folder...",
+        cancellable: false
+    }, async (progress) => {
+        // Find all AL files in the selected folder
+        progress.report({ message: "Finding AL files in selected folder..." });
+        const alFilesUri = await vscode.workspace.findFiles(
+            new vscode.RelativePattern(selectedFolder.fsPath, "**/*.al"),
+            "**/node_modules/**",
+            100000
+        );
+
+        if (alFilesUri.length === 0) {
+            logger.log("No AL files found in selected folder.");
+            vscode.window.showInformationMessage(`No AL files found in ${folderPath}`);
+            status.dispose();
+            return;
+        }
+
+        logger.log(`Found ${alFilesUri.length} AL files`);
+        progress.report({ increment: 5 });
+
+        // Find all XLF files in the workspace
+        progress.report({ message: "Finding XLF files in workspace..." });
+        const xlfFilesUri = await vscode.workspace.findFiles("**/*.xlf", "**/node_modules/**", 100000);
+        if (xlfFilesUri.length === 0) {
+            logger.log("No XLIFF files found in the workspace.");
+            vscode.window.showInformationMessage("No XLIFF files found in the workspace.");
+            status.dispose();
+            return;
+        }
+        logger.log(`Found ${xlfFilesUri.length} XLF files`);
+        progress.report({ increment: 10 });
+
+        // Parse each XLF file once, grouping trans-units by object ID
+        progress.report({ message: "Parsing XLF files..." });
+        const parsedXlfs: GroupedXlfByIdResult[] = [];
+        for (const xlfUri of xlfFilesUri) {
+            const doc = await vscode.workspace.openTextDocument(xlfUri);
+            parsedXlfs.push(parseXlfGroupedByObjectId(doc));
+        }
+        progress.report({ increment: 10 });
+
+        const languageOrder = Object.values(settings.languageMapping);
+        const progressPerFile = 75 / alFilesUri.length;
+        let processedFiles = 0;
+        let filesWithTranslations = 0;
+
+        // For each AL file in the selected folder, look up matching trans-units from XLF files
+        for (const alFileUri of alFilesUri) {
+            processedFiles++;
+            progress.report({
+                message: `Processing AL file (${processedFiles}/${alFilesUri.length})...`
+            });
+
+            const alDocument = await vscode.workspace.openTextDocument(alFileUri);
+            const lines = alDocument.getText().split(/\r?\n/);
+            const header = getALObjectHeader(lines, alFileUri);
+
+            const objectIdKey = `${header.objectType} ${header.objectId}`;
+
+            // Collect matching trans-units from each parsed XLF file
+            const xliffFiles: XliffFile[] = [];
+            for (const parsed of parsedXlfs) {
+                const transUnits = parsed.transUnitsByObjectId.get(objectIdKey);
+                if (transUnits && transUnits.length > 0) {
+                    xliffFiles.push({
+                        filePath: parsed.filePath,
+                        targetLanguage: parsed.targetLanguage,
+                        transUnits,
+                    });
+                }
+            }
+
+            if (xliffFiles.length === 0) {
+                progress.report({ increment: progressPerFile });
+                continue;
+            }
+
+            // Merge translations from all XLF files for this object
+            const transUnits = mergeTranslations(xliffFiles, settings.languageMapping);
+
+            // Resolve AL source locations in the file
+            allNotFound.push(...resolveAlLocationsInFile(transUnits, header));
+
+            // Apply translations
+            await applyTranslationsToAlFile(alFileUri, transUnits, settings.translationMethod, languageOrder);
+
+            filesWithTranslations++;
+            progress.report({ increment: progressPerFile });
+        }
+
+        vscode.window.showInformationMessage(`Successfully processed ${filesWithTranslations} AL file(s) in ${path.basename(folderPath)}.`);
+    });
+
+    await handleNotFoundTransUnits(allNotFound, settings.whenTranslationNotFound);
+
+    logger.log("writeTranslationsToFolder command completed.");
+    status.dispose();
+}
+
 async function deleteTransUnitFromXlf(xlfFilePath: string, transUnitLine: number): Promise<number> {
     const doc = await vscode.workspace.openTextDocument(xlfFilePath);
     const text = doc.getText();
