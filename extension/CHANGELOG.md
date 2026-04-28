@@ -10,6 +10,8 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 * Setting: ATC.whenTranslationNotFound
 * Setting: ATC.translationMethod = ask (adds missing translations and prompts for conflicting existing translations)
+* Better Description for Language Mapping Command
+* Command: ATC: Write Translations to Comments in AL Files in current Folder
 
 ### Fixed
 
