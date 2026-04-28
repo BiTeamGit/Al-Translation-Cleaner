@@ -2,7 +2,7 @@
   "name": "al-translation-cleaner",
   "displayName": "AL Translation Cleaner",
   "description": "Fix your AL translations with ease! This extension helps you transfer missing translations from XLIFF files to your .al files, keeping your Dynamics 365 Business Central projects up to date across languages.",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "icon": "assets/icon.png",
   "publisher": "BiTeam",
   "license": "MIT",
@@ -39,6 +39,10 @@
         "title": "ATC: Write Translations to Comments in current AL File"
       },
       {
+        "command": "atc.writeTranslationsToFolder",
+        "title": "ATC: Write Translations to Comments in AL Files in Folder"
+      },
+      {
         "command": "atc.writeTranslationsFromXliffToALFile",
         "title": "ATC: Write Translations in current Xliff File to AL File Comments"
       },
@@ -67,10 +71,11 @@
       "properties": {
         "ATC.translationMethod": {
           "type": "string",
-          "description": "Specifies the Method of XLIFF editing used, if the original translations in the .al files should  be replaced completely by the translations in the XLIFF, or just translations that are missing in the .al files should be added, not modifying existing translations.",
+          "description": "Specifies the method of XLIFF editing used. Replace mode overwrites existing translations with XLIFF values. Add mode only adds missing translations. Ask mode adds missing translations and asks how to handle conflicting existing translations.",
           "enum": [
             "replace",
-            "add"
+            "add",
+            "ask"
           ],
           "default": "replace"
         },
@@ -82,6 +87,16 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "ATC.whenTranslationNotFound": {
+          "type": "string",
+          "description": "Specifies the action to take when a translation is not found. Options are: log the missing translation, ask the user, or delete the missing translation from the xliff file.",
+          "enum": [
+            "log",
+            "ask",
+            "delete"
+          ],
+          "default": "ask"
         }
       }
     }

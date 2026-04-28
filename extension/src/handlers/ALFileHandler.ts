@@ -1,5 +1,6 @@
 import vscode from "vscode";
 import { logger, throwErrorAndLog } from "../logging/LogHelper";
+import type { TranslationMethod } from "../settings/Settings";
 import { TransUnit } from "./XlfFileHandler";
 
 export interface ALObjectHeader {
@@ -8,6 +9,17 @@ export interface ALObjectHeader {
   objectId: number;
   fileUri: vscode.Uri;
   lines: string[];
+}
+
+export interface NotFoundTransUnit {
+  transUnit: TransUnit;
+  alFileUri: vscode.Uri;
+}
+
+type AskConflictAction = "replace" | "keep";
+
+interface AskModeState {
+  canceled: boolean;
 }
 
 /**
@@ -212,6 +224,11 @@ function findAlElementLine(
     quotedNamePattern = `"?${escapedName}"?`;
   }
 
+  // In commentedOnly mode, do not anchor patterns at line start — comments may
+  // contain non-code annotations (e.g. ticket refs like #12345) between "//" and
+  // the actual code, so the element keyword/name may not be at position 0.
+  const lineStartAnchor = commentedOnly ? "" : "^";
+
   // For "control" type, prefer leaf controls over containers when names collide
   // (e.g. area(content) vs field(Content; ...) on the same page).
   let controlContainerFallback: number | undefined;
@@ -235,7 +252,7 @@ function findAlElementLine(
       case "field":
         if (
           new RegExp(
-            `^field\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*;`,
+            `${lineStartAnchor}field\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*;`,
             "i"
           ).test(trimmed)
         ) {
@@ -247,7 +264,7 @@ function findAlElementLine(
         // Leaf controls: return immediately
         if (
           new RegExp(
-            `^(?:field|part|usercontrol|label)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
+            `${lineStartAnchor}(?:field|part|usercontrol|label)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -257,7 +274,7 @@ function findAlElementLine(
         if (
           controlContainerFallback === undefined &&
           new RegExp(
-            `^(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
+            `${lineStartAnchor}(?:group|repeater|area|cuegroup|grid|fixed)\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -269,7 +286,7 @@ function findAlElementLine(
         // Match action/fileuploadaction/area/group/separator with the name (XLIFF uses "Action" type for all)
         if (
           new RegExp(
-            `^(?:action|fileuploadaction|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}(?:action|fileuploadaction|area|group|separator)\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -282,7 +299,7 @@ function findAlElementLine(
           const innerName = actionContainerMatch[2].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           if (
             new RegExp(
-              `^${keyword}\\s*\\(\\s*"?${innerName}"?\\s*\\)`,
+              `${lineStartAnchor}${keyword}\\s*\\(\\s*"?${innerName}"?\\s*\\)`,
               "i"
             ).test(trimmed)
           ) {
@@ -295,7 +312,7 @@ function findAlElementLine(
       case "modify":
         if (
           new RegExp(
-            `^modify\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}modify\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -313,7 +330,7 @@ function findAlElementLine(
       case "movelast":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}${type}\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -325,7 +342,7 @@ function findAlElementLine(
       case "value":
         if (
           new RegExp(
-            `^value\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}value\\s*\\(\\s*\\d+\\s*;\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -337,7 +354,7 @@ function findAlElementLine(
       case "dataitem":
         if (
           new RegExp(
-            `^${type}\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
+            `${lineStartAnchor}${type}\\s*\\(\\s*${quotedNamePattern}\\s*[;)]`,
             "i"
           ).test(trimmed)
         ) {
@@ -349,7 +366,7 @@ function findAlElementLine(
       case "renderinglayout":
         if (
           new RegExp(
-            `^layout\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
+            `${lineStartAnchor}layout\\s*\\(\\s*${quotedNamePattern}\\s*\\)`,
             "i"
           ).test(trimmed)
         ) {
@@ -358,7 +375,7 @@ function findAlElementLine(
         break;
 
       case "rendering":
-        if (/^rendering\b/i.test(trimmed)) {
+        if (new RegExp(`${lineStartAnchor}rendering\\b`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -375,7 +392,7 @@ function findAlElementLine(
         break;
 
       case "property":
-        if (new RegExp(`(?:^|[{,]\\s*)${escapedName}\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`(?:${lineStartAnchor}|[{,]\\s*)${escapedName}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -392,13 +409,13 @@ function findAlElementLine(
           i = findBeginEndScopeEnd(lines, i) - 1; // -1 because the for-loop will i++
           continue;
         }
-        if (new RegExp(`^${quotedNamePattern}\\s*:`, "i").test(trimmed)) {
+        if (new RegExp(`${lineStartAnchor}${quotedNamePattern}\\s*:`, "i").test(trimmed)) {
           return i;
         }
         break;
 
       case "reportlabel":
-        if (new RegExp(`^${quotedNamePattern}\\s*=`, "i").test(trimmed)) {
+        if (new RegExp(`${lineStartAnchor}${quotedNamePattern}\\s*=`, "i").test(trimmed)) {
           return i;
         }
         break;
@@ -626,7 +643,8 @@ function isPathCommentedOutRecursive(
  * Resolves AL source locations for each trans-unit using the already-loaded file lines,
  * avoiding a full workspace scan.
  */
-export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObjectHeader): void {
+export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObjectHeader): NotFoundTransUnit[] {
+  const notFound: NotFoundTransUnit[] = [];
   for (const tu of transUnits) {
     if (tu.elementPath.length === 0) {
       continue;
@@ -673,13 +691,14 @@ export function resolveAlLocationsInFile(transUnits: TransUnit[], header: ALObje
         if (insertion) {
           tu.missingProperty = { ...insertion, propertyName: tu.propertyName };
         } else {
-          logger.log(`Text: "${tu.source}", XLF: ${tu.xlfFilePath ?? "unknown"}:${tu.lineNumber + 1} , AL: ${header.fileUri.fsPath}`);
+          notFound.push({ transUnit: tu, alFileUri: header.fileUri });
         }
       } else {
-        logger.log(`Text: "${tu.source}", XLF: ${tu.xlfFilePath ?? "unknown"}:${tu.lineNumber + 1} , AL: ${header.fileUri.fsPath}`);
+        notFound.push({ transUnit: tu, alFileUri: header.fileUri });
       }
     }
   }
+  return notFound;
 }
 
 /**
@@ -742,7 +761,7 @@ export async function insertMissingPropertiesInAlFile(
 export async function applyTranslationsToAlFile(
   fileUri: vscode.Uri,
   transUnits: TransUnit[],
-  translationMethod: string,
+  translationMethod: TranslationMethod,
   languageOrder: string[]
 ): Promise<void> {
   const candidates = transUnits.filter(tu => tu.alLocation && tu.translations.size > 0);
@@ -778,6 +797,9 @@ export async function applyTranslationsToAlFile(
   const workspaceEdit = new vscode.WorkspaceEdit();
   let editCount = 0;
   let anyEditsApplied = false;
+  const askModeState: AskModeState | undefined = translationMethod === "ask"
+    ? { canceled: false }
+    : undefined;
 
   for (const tu of toApply) {
     const line = tu.alLocation!.range.start.line;
@@ -814,13 +836,22 @@ export async function applyTranslationsToAlFile(
 
     switch (translationMethod) {
       case "replace":
-        newLineText = buildTranslatedPropertyLine(fullLineText, tu, "replace", true, languageOrder);
+        newLineText = await buildTranslatedPropertyLine(fullLineText, tu, "replace", true, languageOrder, fileUri, line);
+        break;
+
+      case "ask":
+        newLineText = await buildTranslatedPropertyLine(fullLineText, tu, "ask", false, languageOrder, fileUri, line, askModeState);
         break;
 
       case "add":
       default:
-        newLineText = buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder);
+        newLineText = await buildTranslatedPropertyLine(fullLineText, tu, "add", false, languageOrder, fileUri, line);
         break;
+    }
+
+    if (askModeState?.canceled) {
+      vscode.window.showInformationMessage("ATC: Translation write canceled. No file changes were applied.");
+      return;
     }
 
     // When Comment was on a separate line, always apply to merge into one line
@@ -851,16 +882,19 @@ export async function applyTranslationsToAlFile(
 
 /**
  * Builds a new line with translations applied.
- * @param commentMethod "replace" replaces existing translations; "add" only adds missing ones.
+ * @param commentMethod "replace" replaces existing translations; "add" only adds missing ones; "ask" adds missing and asks on conflicts.
  * @param replaceSource If true, replaces the property value text with the .g.xlf source.
  */
-function buildTranslatedPropertyLine(
+async function buildTranslatedPropertyLine(
   lineText: string,
   transUnit: TransUnit,
-  commentMethod: string,
+  commentMethod: TranslationMethod,
   replaceSource: boolean,
-  languageOrder: string[]
-): string | undefined {
+  languageOrder: string[],
+  fileUri: vscode.Uri,
+  lineNumber: number,
+  askModeState?: AskModeState
+): Promise<string | undefined> {
   // Respect AL Locked marker: never modify lines that contain Locked.
   if (/\bLocked\b/i.test(lineText)) {
     return undefined;
@@ -875,6 +909,21 @@ function buildTranslatedPropertyLine(
   // For "replace" mode, also replace the property value text with the .g.xlf source
   if (replaceSource && transUnit.source) {
     result = replacePropertyValue(result, transUnit.source);
+  } else if (commentMethod === "ask" && transUnit.source) {
+    const currentValue = getPropertyValue(result);
+    if (currentValue !== undefined && currentValue !== transUnit.source) {
+      const action = await askSourceConflictAction(fileUri, lineNumber, currentValue, transUnit.source);
+      if (action === "cancel") {
+        if (askModeState) {
+          askModeState.canceled = true;
+        }
+        return undefined;
+      }
+
+      if (action === "replace") {
+        result = replacePropertyValue(result, transUnit.source);
+      }
+    }
   }
 
   // Build language label entries from translations
@@ -912,7 +961,11 @@ function buildTranslatedPropertyLine(
 
   if (commentInfo) {
     const { placeholderDescriptions, existingLangEntries, otherComments } = parseCommentParts(commentInfo.value);
-    const mergedLangEntries = mergeLangEntries(existingLangEntries, newLangEntries, commentMethod);
+    const mergedLangEntries = await mergeLangEntries(existingLangEntries, newLangEntries, commentMethod, fileUri, lineNumber, askModeState);
+
+    if (askModeState?.canceled) {
+      return undefined;
+    }
 
     // Keep only placeholders and language entries inside Comment = '...'.
     const commentParts = [...placeholderDescriptions, ...mergedLangEntries];
@@ -994,6 +1047,31 @@ function replacePropertyValue(lineText: string, newValue: string): string {
 
   const escapedValue = newValue.replace(/'/g, "''");
   return lineText.substring(0, quoteStart + 1) + escapedValue + lineText.substring(pos);
+}
+
+function getPropertyValue(lineText: string): string | undefined {
+  const quoteStart = lineText.indexOf("'");
+  if (quoteStart === -1) {
+    return undefined;
+  }
+
+  let pos = quoteStart + 1;
+  let value = "";
+  while (pos < lineText.length) {
+    if (lineText[pos] === "'") {
+      if (pos + 1 < lineText.length && lineText[pos + 1] === "'") {
+        value += "'";
+        pos += 2;
+      } else {
+        return value;
+      }
+    } else {
+      value += lineText[pos];
+      pos++;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -1098,8 +1176,16 @@ function splitRespectingQuotes(text: string): string[] {
  * Merges new language entries with existing ones based on the translation method.
  * - "replace": new entries replace existing ones for the same language, keeps languages not in new entries
  * - "add": only adds languages that don't already exist
+ * - "ask": adds missing languages and asks the user for conflicting existing values
  */
-function mergeLangEntries(existing: string[], incoming: string[], method: string): string[] {
+async function mergeLangEntries(
+  existing: string[],
+  incoming: string[],
+  method: TranslationMethod,
+  fileUri: vscode.Uri,
+  lineNumber: number,
+  askModeState?: AskModeState
+): Promise<string[]> {
   const existingMap = new Map<string, string>();
   for (const entry of existing) {
     const match = entry.match(/^(\w+)="/);
@@ -1126,12 +1212,113 @@ function mergeLangEntries(existing: string[], incoming: string[], method: string
     return Array.from(result.values());
   }
 
+  if (method === "ask") {
+    const result = new Map(existingMap);
+    for (const [lang, entry] of incomingMap) {
+      const existingEntry = result.get(lang);
+      if (!existingEntry) {
+        result.set(lang, entry);
+        continue;
+      }
+
+      if (existingEntry === entry) {
+        continue;
+      }
+
+      const action = await askConflictAction(fileUri, lineNumber, lang, existingEntry, entry);
+
+      if (action === "cancel") {
+        if (askModeState) {
+          askModeState.canceled = true;
+        }
+        return Array.from(result.values());
+      }
+
+      if (action === "replace") {
+        result.set(lang, entry);
+      }
+    }
+    return Array.from(result.values());
+  }
+
   // "replace": replace existing languages, keep languages not in incoming
   const result = new Map(existingMap);
   for (const [lang, entry] of incomingMap) {
     result.set(lang, entry);
   }
   return Array.from(result.values());
+}
+
+async function askConflictAction(
+  fileUri: vscode.Uri,
+  lineNumber: number,
+  languageCode: string,
+  existingEntry: string,
+  incomingEntry: string
+): Promise<AskConflictAction | "cancel"> {
+  const existingValue = decodeLangEntryValue(existingEntry);
+  const incomingValue = decodeLangEntryValue(incomingEntry);
+
+  type AskQuickPickItem = vscode.QuickPickItem & { action: AskConflictAction | "cancel" };
+  const options: AskQuickPickItem[] = [
+    { label: "Replace this translation", description: "Use the XLIFF value for this conflict.", action: "replace" },
+    { label: "Keep existing translation", description: "Do not change this language value.", action: "keep" },
+    { label: "Cancel", description: "Stop this run without applying edits.", action: "cancel" },
+  ];
+
+  const selected = await vscode.window.showQuickPick(options, {
+    title: `ATC ask mode conflict (${languageCode})`,
+    placeHolder: `Line ${lineNumber + 1} in ${fileUri.path.split("/").pop() ?? fileUri.fsPath} | Existing: "${shortenForPrompt(existingValue)}" | XLIFF: "${shortenForPrompt(incomingValue)}"`,
+    ignoreFocusOut: true,
+  });
+
+  if (!selected || selected.action === "cancel") {
+    return "cancel";
+  }
+
+  return selected.action;
+}
+
+async function askSourceConflictAction(
+  fileUri: vscode.Uri,
+  lineNumber: number,
+  existingValue: string,
+  incomingValue: string
+): Promise<AskConflictAction | "cancel"> {
+  type AskQuickPickItem = vscode.QuickPickItem & { action: AskConflictAction | "cancel" };
+  const options: AskQuickPickItem[] = [
+    { label: "Replace caption text", description: "Use the XLIFF source text for this property.", action: "replace" },
+    { label: "Keep existing caption text", description: "Leave the current property value unchanged.", action: "keep" },
+    { label: "Cancel", description: "Stop this run without applying edits.", action: "cancel" },
+  ];
+
+  const selected = await vscode.window.showQuickPick(options, {
+    title: "ATC ask mode caption conflict",
+    placeHolder: `Line ${lineNumber + 1} in ${fileUri.path.split("/").pop() ?? fileUri.fsPath} | Existing: "${shortenForPrompt(existingValue)}" | XLIFF: "${shortenForPrompt(incomingValue)}"`,
+    ignoreFocusOut: true,
+  });
+
+  if (!selected || selected.action === "cancel") {
+    return "cancel";
+  }
+
+  return selected.action;
+}
+
+function decodeLangEntryValue(entry: string): string {
+  const match = entry.match(/^\w+="(.*)"$/);
+  if (!match) {
+    return entry;
+  }
+  return match[1].replace(/''/g, "'");
+}
+
+function shortenForPrompt(value: string): string {
+  const maxLength = 80;
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.substring(0, maxLength - 3)}...`;
 }
 
 /**

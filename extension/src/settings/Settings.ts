@@ -8,10 +8,13 @@ import path from "path";
 // - const settings = SettingsLoader.getSettings();
 // - settings.logLevel
 
+export type TranslationMethod = "replace" | "add" | "ask";
+
 export class Settings {
     public workspaceFolderPath: string;
-    public translationMethod = "replace";
+    public translationMethod: TranslationMethod = "replace";
     public languageMapping: { [targetLanguage: string]: string } = {};
+    public whenTranslationNotFound: "log" | "ask" | "delete" = "ask";
 
     constructor(workspaceFolderPath: string) {
         this.workspaceFolderPath = workspaceFolderPath;

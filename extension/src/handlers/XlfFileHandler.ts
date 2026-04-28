@@ -252,12 +252,15 @@ function parseXliffElementPath(transUnitId: string, xliffGeneratorNote: string):
     return [];
   }
 
-  // Split on ' - ' then re-merge fragments that don't start with a known type
-  // keyword. This handles element names that contain ' - '
+  // Split on exactly ' - ' (space-dash-space) then re-merge fragments that
+  // don't start with a known type keyword. Using a literal split instead of
+  // /\s+-\s+/ preserves trailing spaces in element names (e.g. "Error Codes "
+  // would lose its trailing space with a greedy \s+ before the dash).
+  // This also handles element names that contain ' - '
   // (e.g. group("FFC Inventory Valuation - Group") produces the XLIFF note
   // segment "Action FFC Inventory Valuation - Group" which naive splitting
   // would break into "Action FFC Inventory Valuation" + "Group").
-  const rawParts = xliffGeneratorNote.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+  const rawParts = xliffGeneratorNote.split(" - ").filter(Boolean);
   const segments: string[] = [];
   for (const part of rawParts) {
     if (segments.length > 0 && !isNoteSegmentBoundary(part)) {
@@ -319,7 +322,9 @@ function isNoteSegmentBoundary(segment: string): boolean {
 }
 
 function parseNoteSegment(segment: string): { type: string; name: string } | undefined {
-  const normalized = segment.trim();
+  // Only trim leading whitespace — trailing spaces may be part of the element
+  // name (e.g. "Error Codes ") and must be preserved for AL matching.
+  const normalized = segment.trimStart();
   if (!normalized) {
     return undefined;
   }
@@ -384,13 +389,13 @@ function parseNoteSegment(segment: string): { type: string; name: string } | und
   for (const prefix of typePrefixes) {
     const match = normalized.match(new RegExp(`^${prefix.notePrefix}\\s+(.+)$`, "i"));
     if (match) {
-      return { type: prefix.normalizedType, name: match[1].trim() };
+      return { type: prefix.normalizedType, name: match[1] };
     }
   }
 
   const fallback = normalized.match(/^(\w+)\s+(.+)$/);
   if (fallback) {
-    return { type: fallback[1], name: fallback[2].trim() };
+    return { type: fallback[1], name: fallback[2] };
   }
 
   return undefined;

@@ -4,6 +4,20 @@ All notable changes to the "al-translation-cleaner" extension will be documented
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.1.0] - 2026-04-28
+
+### Added
+
+* Setting: ATC.whenTranslationNotFound
+* Setting: ATC.translationMethod = ask (adds missing translations and prompts for conflicting existing translations)
+* Better Description for Language Mapping Command
+* Command: ATC: Write Translations to Comments in AL Files in current Folder
+
+### Fixed
+
+* Comment Parsing Fixed - Translations that are commented out no longer show up as errors
+* Mapping of Object Names with Spaces at the end works
+
 ## [1.0.4] - 2026-04-14
 
 ### Changed
