@@ -67,10 +67,11 @@
       "properties": {
         "ATC.translationMethod": {
           "type": "string",
-          "description": "Specifies the Method of XLIFF editing used, if the original translations in the .al files should  be replaced completely by the translations in the XLIFF, or just translations that are missing in the .al files should be added, not modifying existing translations.",
+          "description": "Specifies the method of XLIFF editing used. Replace mode overwrites existing translations with XLIFF values. Add mode only adds missing translations. Ask mode adds missing translations and asks how to handle conflicting existing translations.",
           "enum": [
             "replace",
-            "add"
+            "add",
+            "ask"
           ],
           "default": "replace"
         },
